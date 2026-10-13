@@ -202,7 +202,7 @@ const UI = (() => {
           <br><button class="big" data-act="upgrade" ${locked || !canAfford(cost) ? 'disabled' : ''}>⬆️ Upgrade</button></div>`;
       } else if (d.maxLevel > 1) h += `<div class="upbox">Fully upgraded ★</div>`;
       if (d.workers) h += `<button data-act="pause">${b.paused ? '▶ Resume work' : '⏸ Pause (free workers)'}</button>`;
-      if (!d.unique) h += ` <button class="danger" data-act="demolish">🗑 Demolish</button>`;
+      if (!d.unique) h += ` <button class="danger" data-act="demolish">${ui.armed === 'demolish' + b.id ? '⚠️ Click again to demolish (50% refund)' : '🗑 Demolish'}</button>`;
     }
     el.innerHTML = h;
   }
@@ -599,7 +599,7 @@ const UI = (() => {
         <li><b>War:</b> forge weapons, train soldiers at the Barracks, defend against raids and conquer neighbouring kingdoms. Mix unit types — every class has counters!</li>
         <li><b>Keys:</b> Space = pause, 1/2/3 = speed, Esc = close.</li>
       </ul>
-      <p><button data-act="newgame" class="danger">Start a new game</button></p></div>`;
+      <p><button data-act="newgame" class="danger">${ui.armed === 'newgame' ? '⚠️ Click again — current progress will be lost' : 'Start a new game'}</button></p></div>`;
   }
 
   // ---------------------------------------------------------
@@ -711,7 +711,9 @@ const UI = (() => {
       case 'upgrade': if (!Sim.upgradeBuilding(ui.selected)) toast('Cannot upgrade yet.', 'bad'); break;
       case 'pause': ui.selected.paused = !ui.selected.paused; break;
       case 'demolish':
-        if (confirm(`Demolish this ${BUILDINGS[ui.selected.type].name}? You get half the cost back.`)) { Sim.demolish(ui.selected); ui.selected = null; }
+        // two-step confirm: first click arms the button
+        if (ui.armed === 'demolish' + ui.selected.id) { Sim.demolish(ui.selected); ui.selected = null; ui.armed = null; }
+        else ui.armed = 'demolish' + ui.selected.id;
         break;
       case 'forgetab': ui.forgeTab = d.tab; break;
       case 'techtab': ui.techTab = d.tab; ui.techSel = null; break;
@@ -749,7 +751,12 @@ const UI = (() => {
       case 'sendexp': if (Sim.startExpedition(ui.expType, ui.expPeople)) { closeModal(); rerender = false; } break;
       case 'closereport': ui.reports.shift(); showReport(); rerender = false; break;
       case 'newgame':
-        if (G && G.started && $('intro').classList.contains('hidden') && !confirm('Start a new game? Your current progress will be lost.')) return;
+        if (G && G.started && $('intro').classList.contains('hidden') && ui.armed !== 'newgame') {
+          ui.armed = 'newgame';
+          t.textContent = '⚠️ Click again — current progress will be lost';
+          return;
+        }
+        ui.armed = null;
         Main.startNew(); rerender = false; break;
       case 'continue': Main.continueGame(); rerender = false; break;
       case 'keepplaying': $('intro').classList.add('hidden'); G.paused = false; rerender = false; break;
