@@ -11,14 +11,12 @@ const Main = (() => {
     newGame();
     G.started = true;
     afterLoad();
-    log('You take charge of Emberfall. The woodpile is empty — send villagers to gather wood!', 'warn');
-    UI.openModal('townhall', 'exp');
   }
   function continueGame() {
     if (!loadGame()) { startNew(); return; }
     G.started = true;
+    if (G.tut === undefined) G.tut = -1;
     afterLoad();
-    UI.toast('Welcome back to Emberfall.', 'good');
   }
   function afterLoad() {
     document.getElementById('intro').classList.add('hidden');
@@ -29,22 +27,23 @@ const Main = (() => {
     Render.resetWalkers();
     Render.centerOn(22, 21);
     G.paused = false;
-    UI.refreshAll(true);
+    G.inBattle = false;
+    UI.refreshAll();
   }
 
   function loop(t) {
     const dt = Math.min(0.1, (t - last) / 1000 || 0);
     last = t;
     if (G && G.started) {
-      if (!G.paused) {
+      if (!G.paused && !G.inBattle) {
         let simDt = dt * G.speed / DAY_SECONDS;
         // sub-step for stability at high speed
         while (simDt > 0) { const s = Math.min(simDt, 0.02); Sim.tick(s); simDt -= s; }
       }
       panKeys(dt);
       uiTimer += dt; modalTimer += dt; autosave += dt;
-      if (uiTimer > 0.25) { uiTimer = 0; UI.renderTop(); UI.renderLeft(); }
-      if (modalTimer > 1) { modalTimer = 0; UI.renderBottom(); UI.renderSide(); if (!mouse.down) UI.renderModal(false); }
+      if (uiTimer > 0.25) { uiTimer = 0; UI.renderTop(); UI.renderAlert(); }
+      if (modalTimer > 0.5) { modalTimer = 0; UI.renderBottom(); UI.renderSide(); UI.renderTutorial(); if (!mouse.down) UI.renderModal(); }
       if (autosave > 30) { autosave = 0; saveGame(); }
       UI.updateHoverPop(dt, mouse.overPop);
     }
@@ -53,11 +52,11 @@ const Main = (() => {
   }
 
   function panKeys(dt) {
-    const sp = 600 * dt / Render.cam.zoom;
-    if (keys.KeyA || keys.ArrowLeft) Render.cam.x -= sp;
-    if (keys.KeyD || keys.ArrowRight) Render.cam.x += sp;
-    if (keys.KeyW || keys.ArrowUp) Render.cam.y -= sp;
-    if (keys.KeyS || keys.ArrowDown) Render.cam.y += sp;
+    const sp = 700 * dt / Render.cam.zoom, t = Render.tgt;
+    if (keys.KeyA || keys.ArrowLeft) t.x -= sp;
+    if (keys.KeyD || keys.ArrowRight) t.x += sp;
+    if (keys.KeyW || keys.ArrowUp) t.y -= sp;
+    if (keys.KeyS || keys.ArrowDown) t.y += sp;
     Render.clampCam();
   }
 
@@ -80,8 +79,7 @@ const Main = (() => {
       if (mouse.down) {
         if (!mouse.dragging && Math.hypot(x - mouse.sx, y - mouse.sy) > 5) mouse.dragging = true;
         if (mouse.dragging) {
-          Render.cam.x = mouse.camx - (x - mouse.sx) / Render.cam.zoom;
-          Render.cam.y = mouse.camy - (y - mouse.sy) / Render.cam.zoom;
+          Render.panTo(mouse.camx - (x - mouse.sx) / Render.cam.zoom, mouse.camy - (y - mouse.sy) / Render.cam.zoom);
           Render.clampCam();
         }
       }
@@ -114,18 +112,13 @@ const Main = (() => {
     canvas.addEventListener('wheel', e => {
       e.preventDefault();
       const [x, y] = canvasPos(e);
-      const before = Render.screenToWorld(x, y);
-      const z = Render.cam.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12);
-      Render.cam.zoom = Math.max(0.4, Math.min(2.2, z));
-      const after = Render.screenToWorld(x, y);
-      Render.cam.x += before[0] - after[0];
-      Render.cam.y += before[1] - after[1];
-      Render.clampCam();
+      Render.zoomAt(x, y, e.deltaY < 0 ? 1.15 : 1 / 1.15);
     }, { passive: false });
     window.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT') return;
       keys[e.code] = true;
       if (!G || !G.started) return;
+      if (G.inBattle) return;
       if (e.code === 'Escape') {
         if (UI.ui.placing) UI.stopPlacing();
         else if (UI.ui.modal) UI.closeModal();
@@ -142,9 +135,11 @@ const Main = (() => {
 
   function boot() {
     canvas = document.getElementById('game');
+    installIcons();
     newGame();               // background scene behind the intro
     Render.init(canvas);
     UI.init();
+    Battle.init();
     initInput();
     UI.showIntro();
     requestAnimationFrame(loop);

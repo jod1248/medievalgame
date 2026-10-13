@@ -48,24 +48,6 @@ const Combat = (() => {
   function applyPending(stacks) {
     for (const s of stacks) { s.n = Math.max(0, s.n - s.pending); s.pending = 0; }
   }
-  function summarize(events, A, D) {
-    // merge by attacker->target and keep the biggest
-    const map = new Map();
-    for (const e of events) {
-      const key = e.a + '>' + e.t.id + e.t.side;
-      const cur = map.get(key) || { a: e.a, aSide: e.aSide, t: e.t, kills: 0 };
-      cur.kills += e.kills;
-      map.set(key, cur);
-    }
-    return [...map.values()].filter(e => e.kills >= 1).sort((x, y) => y.kills - x.kills).slice(0, 3)
-      .map(e => {
-        const an = e.aSide === 'A' ? A.name : D.name;
-        const tn = e.t.side === 'A' ? A.name : D.name;
-        const poss = n => n + (n.endsWith('s') ? "'" : "'s");
-        return { side: e.aSide, text: `${poss(an)} ${e.a} cut down ${Math.round(e.kills)} of ${poss(tn)} ${e.t.w.unit}` };
-      });
-  }
-
   function simulate(Ain, Din, opts = {}) {
     const rng = opts.rng || Math.random;
     const detailed = opts.detailed !== false;
@@ -75,11 +57,12 @@ const Combat = (() => {
     const sa = stacksOf(Ain, 'A'), sd = stacksOf(Din, 'D');
     const startA = total(sa), startD = total(sd);
     const rounds = [];
-    const snap = (label, events) => {
+    // each snapshot keeps per-stack counts so the battle can be replayed as an animation
+    const snap = (kind, events) => {
       if (!detailed) return;
-      rounds.push({ label, a: total(sa), d: total(sd), events: events ? summarize(events, A, D) : [] });
+      rounds.push({ kind, a: total(sa), d: total(sd), sa: sa.map(s => s.n), sd: sd.map(s => s.n), towers: !!(A.towers || D.towers) });
     };
-    snap('Armies meet');
+    snap('deploy');
     const towerA = { w: { cls: 'ranged', pierce: 0.3, unit: 'Watchtowers' }, n: A.towers, label: 'Watchtowers' };
     const towerD = { w: { cls: 'ranged', pierce: 0.3, unit: 'Watchtowers' }, n: D.towers, label: 'Watchtowers' };
 
@@ -103,7 +86,7 @@ const Combat = (() => {
       if (A.towers) strike(towerA, 1, A, sd, D, 'volley', rng, ev);
       if (D.towers) strike(towerD, 1, D, sa, A, 'volley', rng, ev);
       applyPending(sa); applyPending(sd);
-      snap(`Volley ${v}`, ev);
+      snap('volley', ev);
       if (total(sa) < 0.5 || total(sd) < 0.5) break;
     }
 
@@ -145,7 +128,7 @@ const Combat = (() => {
       if (A.towers) strike(towerA, 0.5, A, sd, D, 'volley', rng, ev);
       if (D.towers) strike(towerD, 0.5, D, sa, A, 'volley', rng, ev);
       applyPending(sa); applyPending(sd);
-      snap(`Melee ${r}`, ev);
+      snap(r === 1 ? 'charge' : 'melee', ev);
       const ta = total(sa), td = total(sd);
       if (ta < 0.5 && td < 0.5) winner = 'D';
       else if (ta < 0.5) winner = 'D';
@@ -161,7 +144,7 @@ const Combat = (() => {
     // pursuit of the routed army
     const loser = winner === 'A' ? sd : sa;
     for (const s of loser) s.n *= 0.85;
-    snap(winner === 'A' ? `${A.name} victorious` : `${D.name} victorious`);
+    snap('rout');
     return finish(sa, sd, startA, startD, winner, rounds, A, D);
   }
 
@@ -175,7 +158,7 @@ const Combat = (() => {
       }
       return { start, end, lost };
     };
-    return { winner, A: res(sa), D: res(sd), rounds };
+    return { winner, A: res(sa), D: res(sd), rounds, order: { A: sa.map(s => s.id), D: sd.map(s => s.id) } };
   }
 
   // Monte-Carlo win chance for side A

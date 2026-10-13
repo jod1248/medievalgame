@@ -3,28 +3,28 @@
 //  tech tree, neighbouring kingdoms.
 // ============================================================
 
-const DAY_SECONDS = 12;          // real seconds per in-game day at 1x speed
+const DAY_SECONDS = 48;          // real seconds per in-game day at 1x speed
 const WAGE_WORKER = 0.3;         // coins per worker per day
 const WAGE_SOLDIER = 0.6;        // coins per soldier per day
 const FOOD_PER_PERSON = 0.15;    // food eaten per person per day
 const RECRUIT_COST = 5;          // coins to train one soldier
 
 const RES = {
-  food:      { name: 'Food',           icon: '🍞', price: 1 },
-  wood:      { name: 'Wood',           icon: '🪵', price: 1 },
-  stone:     { name: 'Stone',          icon: '🪨', price: 1.5 },
-  planks:    { name: 'Planks',         icon: '🪚', price: 3.5 },
-  charcoal:  { name: 'Charcoal',       icon: '⚫', price: 3.5 },
-  ironOre:   { name: 'Iron Ore',       icon: '🟤', price: 2.5 },
-  copperOre: { name: 'Copper Ore',     icon: '🟠', price: 2.5 },
-  tinOre:    { name: 'Tin Ore',        icon: '⚪', price: 3 },
-  zincOre:   { name: 'Zinc Ore',       icon: '🔘', price: 3 },
-  iron:      { name: 'Iron',           icon: '⚙️', price: 9 },
-  bronze:    { name: 'Bronze',         icon: '🥉', price: 10 },
-  brass:     { name: 'Brass',          icon: '🔔', price: 11 },
-  steel:     { name: 'Steel',          icon: '🔷', price: 24 },
-  damascus:  { name: 'Damascus Steel', icon: '💠', price: 60 },
-  horses:    { name: 'Horses',         icon: '🐎', price: 45 },
+  food:      { name: 'Food',           icon: 'food', color: '#e0b25a', price: 1 },
+  wood:      { name: 'Wood',           icon: 'log', color: '#8a5a32', price: 1 },
+  stone:     { name: 'Stone',          icon: 'stone', color: '#a9a49b', price: 1.5 },
+  planks:    { name: 'Planks',         icon: 'planks', color: '#c99a5b', price: 3.5 },
+  charcoal:  { name: 'Charcoal',       icon: 'charcoal', color: '#3a3634', price: 3.5 },
+  ironOre:   { name: 'Iron Ore',       icon: 'ore', color: '#b0704a', price: 2.5 },
+  copperOre: { name: 'Copper Ore',     icon: 'ore', color: '#e08a3a', price: 2.5 },
+  tinOre:    { name: 'Tin Ore',        icon: 'ore', color: '#d8dde2', price: 3 },
+  zincOre:   { name: 'Zinc Ore',       icon: 'ore', color: '#8fb1c9', price: 3 },
+  iron:      { name: 'Iron',           icon: 'ingot', color: '#9aa4ad', price: 9 },
+  bronze:    { name: 'Bronze',         icon: 'ingot', color: '#c8833f', price: 10 },
+  brass:     { name: 'Brass',          icon: 'ingot', color: '#e3c050', price: 11 },
+  steel:     { name: 'Steel',          icon: 'ingot', color: '#7fb0e0', price: 24 },
+  damascus:  { name: 'Damascus Steel', icon: 'gem', color: '#5fd6d0', price: 60 },
+  horses:    { name: 'Horses',         icon: 'horse', color: '#a0703e', price: 45 },
 };
 const RES_ORDER = Object.keys(RES);
 
@@ -42,113 +42,130 @@ const RECIPES = {
   damascus: { name: 'Damascus Steel', tier: 4, in: { steel: 2, brass: 1, charcoal: 2 },    out: { damascus: 1 }, time: 0.8 },
 };
 const REFINERY_SPEED = [1, 1.8, 2.8, 4.2];   // by tier 1..4
-const REFINERY_TIER_NAMES = ['', 'Tier I — Workshop', 'Tier II — Smelter', 'Tier III — Blast Furnace', 'Tier IV — Crucible Works'];
+const TIER_NAMES = ['', 'I', 'II', 'III', 'IV'];
 
 // ------------------------------------------------------------
 //  Buildings
 // ------------------------------------------------------------
 const BUILDINGS = {
   house: {
-    name: 'House', size: 1, buildable: true, cost: { wood: 20 }, buildDays: 0.4, maxLevel: 3,
+    name: 'House', icon: 'house', size: 1, buildable: true, cost: { wood: 20 }, buildDays: 0.4, maxLevel: 3,
     upgrade: [null, { planks: 15, stone: 10 }, { planks: 30, stone: 30, coins: 40 }],
     upgradeReq: [null, null, 'masonry'],
     capacity: [10, 16, 24],
-    desc: 'Homes for your people. Free housing attracts new settlers.',
+    desc: 'Free homes attract settlers.',
   },
   farm: {
-    name: 'Farm', size: 2, buildable: true, cost: { wood: 30 }, buildDays: 0.6, maxLevel: 3,
+    name: 'Farm', icon: 'wheat', size: 2, buildable: true, cost: { wood: 30 }, buildDays: 0.6, maxLevel: 3,
     upgrade: [null, { planks: 20, coins: 30 }, { planks: 40, iron: 5, coins: 60 }],
     workers: [10, 14, 18], rate: [1.0, 1.15, 1.35], produces: 'food',
-    desc: 'Farmers grow food. Every person eats ' + FOOD_PER_PERSON + ' food per day.',
+    desc: 'Grows food.',
   },
   lumber: {
-    name: 'Lumber Camp', size: 1, buildable: true, cost: { wood: 15, coins: 20 }, buildDays: 0.4, maxLevel: 3,
+    name: 'Lumber Camp', icon: 'lumber', size: 1, buildable: true, cost: { wood: 15, coins: 20 }, buildDays: 0.4, maxLevel: 3,
     upgrade: [null, { planks: 15, coins: 30 }, { planks: 30, iron: 5, coins: 60 }],
     workers: [8, 12, 16], rate: [1.0, 1.2, 1.45], produces: 'wood',
-    desc: 'Woodcutters steadily fell trees for wood.',
+    desc: 'Cuts wood.',
   },
   quarry: {
-    name: 'Quarry', size: 1, buildable: true, cost: { wood: 30 }, buildDays: 0.5, maxLevel: 3,
+    name: 'Quarry', icon: 'stone', size: 1, buildable: true, cost: { wood: 30 }, buildDays: 0.5, maxLevel: 3,
     upgrade: [null, { planks: 20, coins: 30 }, { planks: 30, iron: 8, coins: 60 }],
     workers: [8, 12, 16], rate: [0.6, 0.75, 0.95], produces: 'stone',
-    desc: 'Masons cut stone from the earth.',
+    desc: 'Cuts stone.',
   },
   mine: {
-    name: 'Mine', size: 1, buildable: true, cost: { wood: 40, stone: 20 }, buildDays: 0.8, maxLevel: 3, requires: 'mining',
+    name: 'Mine', icon: 'pick', size: 1, buildable: true, cost: { wood: 40, stone: 20 }, buildDays: 0.8, maxLevel: 3, requires: 'mining',
     upgrade: [null, { planks: 25, stone: 30 }, { planks: 40, iron: 10, stone: 40 }],
     workers: [8, 12, 16], rate: [0.45, 0.55, 0.7], produces: 'ore',
-    desc: 'Miners dig for ore. Choose which ore the mine extracts.',
-  },
-  refinery: {
-    name: 'Refinery', size: 1, buildable: true, cost: { wood: 30, stone: 30 }, buildDays: 0.6, maxLevel: 4, requires: 'ref1',
-    upgrade: [null, { planks: 20, stone: 40, coins: 60 }, { planks: 30, stone: 60, iron: 10, coins: 120 }, { stone: 100, steel: 10, brass: 10, coins: 250 }],
-    upgradeReq: [null, 'ref2', 'ref3', 'ref4'],
-    workers: [4, 5, 6, 8],
-    desc: 'Refines raw resources. Higher tiers refine faster and unlock advanced recipes.',
+    desc: 'Digs the ore you choose.',
   },
   watchtower: {
-    name: 'Watchtower', size: 1, buildable: true, cost: { stone: 40, planks: 10 }, buildDays: 0.8, maxLevel: 2, requires: 'watchtowers',
+    name: 'Watchtower', icon: 'tower', size: 1, buildable: true, cost: { stone: 40, planks: 10 }, buildDays: 0.8, maxLevel: 2, requires: 'watchtowers',
     upgrade: [null, { stone: 60, iron: 10 }],
-    desc: 'Archers in the tower shoot at raiders before and during battle.',
+    desc: 'Shoots raiders.',
   },
   stables: {
-    name: 'Stables', size: 2, buildable: true, cost: { planks: 40, stone: 20 }, buildDays: 1, maxLevel: 2, requires: 'horsemanship',
+    name: 'Stables', icon: 'horseshoe', size: 2, buildable: true, cost: { planks: 40, stone: 20 }, buildDays: 1, maxLevel: 2, requires: 'horsemanship',
     upgrade: [null, { planks: 40, iron: 10 }],
     workers: [4, 8], rate: [0.08, 0.1], produces: 'horses', consumes: { food: 4 },
-    desc: 'Breeds horses (uses food). Horses are needed for cavalry lances.',
+    desc: 'Breeds horses from food.',
   },
   // ---- Command center (unique) ----
   townhall: {
-    name: 'Town Hall', size: 2, unique: true, maxLevel: 3,
+    name: 'Town Hall', icon: 'townhall', size: 2, unique: true, maxLevel: 3,
     upgrade: [null, { planks: 40, stone: 60, coins: 100 }, { planks: 80, stone: 150, iron: 20, coins: 300 }],
-    tax: [0.2, 0.27, 0.35],
-    desc: 'Seat of your rule. Collects taxes and organises expeditions.',
+    expSlots: [2, 3, 4], expBonus: [1, 1.15, 1.3],
+    desc: 'Sends expeditions.',
   },
   forge: {
-    name: 'Forge', size: 2, unique: true, maxLevel: 3,
+    name: 'Forge', icon: 'anvil', size: 2, unique: true, maxLevel: 3,
     upgrade: [null, { planks: 30, stone: 40, coins: 80 }, { stone: 80, iron: 25, coins: 200 }],
     speed: [1, 1.6, 2.4],
-    desc: 'Your old smithy. Forge weapons and research new technology.',
+    desc: 'Research and forge weapons.',
   },
   market: {
-    name: 'Marketplace', size: 2, unique: true, maxLevel: 3,
+    name: 'Marketplace', icon: 'market', size: 2, unique: true, maxLevel: 3,
     upgrade: [null, { planks: 30, coins: 100 }, { planks: 60, brass: 10, coins: 250 }],
     upgradeReq: [null, null, 'tradeGuild'],
     spread: [0.3, 0.22, 0.15],
-    desc: 'Trade resources with neighbouring kingdoms for coins.',
+    desc: 'Buy and sell goods.',
   },
   barracks: {
-    name: 'Barracks', size: 2, unique: true, maxLevel: 3,
+    name: 'Barracks', icon: 'barracks', size: 2, unique: true, maxLevel: 3,
     upgrade: [null, { planks: 40, stone: 40, coins: 80 }, { planks: 60, stone: 100, iron: 20, coins: 200 }],
     capacity: [60, 150, 350],
-    desc: 'Train soldiers with weapons from the armoury and command your army.',
+    desc: 'Train and command soldiers.',
   },
 };
-const BUILD_MENU = ['house', 'farm', 'lumber', 'quarry', 'mine', 'refinery', 'watchtower', 'stables'];
+
+// ------------------------------------------------------------
+//  Refineries: one building type per refined resource.
+//  Tier (level) N needs the Tier N refining research.
+// ------------------------------------------------------------
+const REFINERIES = {
+  sawmill:    { name: 'Sawmill',        icon: 'saw',      recipe: 'planks',   requires: 'ref1', cost: { wood: 30, stone: 15 } },
+  kiln:       { name: 'Charcoal Kiln',  icon: 'flame',    recipe: 'charcoal', requires: 'ref1', cost: { wood: 20, stone: 25 } },
+  smelter:    { name: 'Iron Smelter',   icon: 'furnace',  recipe: 'iron',     requires: 'ref2', cost: { wood: 30, stone: 40 } },
+  foundry:    { name: 'Bronze Foundry', icon: 'furnace',  recipe: 'bronze',   requires: 'ref2', cost: { wood: 30, stone: 40 } },
+  brassworks: { name: 'Brass Works',    icon: 'furnace',  recipe: 'brass',    requires: 'ref2', cost: { wood: 30, stone: 40 } },
+  steelworks: { name: 'Steelworks',     icon: 'furnace',  recipe: 'steel',    requires: 'ref3', cost: { stone: 80, iron: 15 } },
+  crucible:   { name: 'Crucible',       icon: 'crucible', recipe: 'damascus', requires: 'ref4', cost: { stone: 100, steel: 10 } },
+};
+for (const id in REFINERIES) {
+  const r = REFINERIES[id];
+  BUILDINGS[id] = {
+    ...r, size: 1, buildable: true, buildDays: 0.6, maxLevel: 4, refinery: true,
+    upgrade: [null, { planks: 20, stone: 40, coins: 60 }, { planks: 30, stone: 60, iron: 10, coins: 120 }, { stone: 100, steel: 10, coins: 250 }],
+    upgradeReq: [null, 'ref2', 'ref3', 'ref4'],
+    workers: [3, 4, 5, 6],
+    desc: 'Refines ' + r.recipe + '.',
+  };
+}
+const BUILD_MENU = ['house', 'farm', 'lumber', 'quarry', 'mine', 'sawmill', 'kiln', 'smelter', 'foundry', 'brassworks', 'steelworks', 'crucible', 'watchtower', 'stables'];
 const ORE_TYPES = ['ironOre', 'copperOre', 'tinOre', 'zincOre'];
 
 // ------------------------------------------------------------
 //  Expeditions sent from the Town Hall
 // ------------------------------------------------------------
 const EXPEDITIONS = {
-  wood:  { name: 'Gather Wood',    days: 1.5, yield: { wood: 1.2 },  desc: '1.2 wood per person' },
-  stone: { name: 'Haul Stone',     days: 2,   yield: { stone: 0.9 }, desc: '0.9 stone per person' },
-  food:  { name: 'Hunt & Forage',  days: 1.5, yield: { food: 1.5 },  desc: '1.5 food per person' },
-  ore:   { name: 'Prospect Ore',   days: 3,   yield: { ironOre: 0.3, copperOre: 0.25, tinOre: 0.15, zincOre: 0.15 }, desc: 'Mixed ores (~0.85 per person)' },
+  wood:  { name: 'Wood',  icon: 'log',   days: 1.5, yield: { wood: 1.2 } },
+  stone: { name: 'Stone', icon: 'stone', days: 2,   yield: { stone: 0.9 } },
+  food:  { name: 'Food',  icon: 'food',  days: 1.5, yield: { food: 1.5 } },
+  ore:   { name: 'Ore',   icon: 'ore',   days: 3,   yield: { ironOre: 0.3, copperOre: 0.25, tinOre: 0.15, zincOre: 0.15 } },
 };
 
 // ------------------------------------------------------------
 //  Weapon classes and their matchups
 // ------------------------------------------------------------
 const CLASSES = {
-  sword:   { name: 'Swords',   color: '#c9d1d9', pros: 'Balanced fighters. Strong vs spearmen and javelineers.', cons: 'No special tricks.' },
-  axe:     { name: 'War Axes', color: '#e3794b', pros: 'Huge damage, pierce armour, hook shields (strong vs swords & spears).', cons: 'Light armour — javelins and arrows shred them.' },
-  mace:    { name: 'Maces',    color: '#b48ead', pros: 'Crushing blows — the heavier the enemy armour, the harder they hit.', cons: 'Mediocre vs unarmoured troops. Vulnerable to javelins.' },
-  spear:   { name: 'Spears',   color: '#88c0d0', pros: 'Shields (high armour), strike first, devastating vs cavalry.', cons: 'Low damage. Swords and axes get inside their reach.' },
-  javelin: { name: 'Javelins', color: '#a3be8c', pros: 'Throw 2 heavy volleys before melee. Strong vs axes, maces & cavalry.', cons: 'Weak once melee begins. Swords cut them down.' },
-  ranged:  { name: 'Ranged',   color: '#ebcb8b', pros: 'Many volleys before melee and keep shooting behind your lines.', cons: 'Fragile, weak vs heavy armour, slaughtered by cavalry.' },
-  cavalry: { name: 'Cavalry',  color: '#d08770', pros: 'Massive charge, lots of health, hunts archers & javelineers.', cons: 'Needs horses. Spears counter them hard.' },
-  militia: { name: 'Militia',  color: '#999',    pros: 'Free — peasants grab pitchforks.', cons: 'Barely trained.' },
+  sword:   { name: 'Swords',   icon: 'sword',   color: '#c9d1d9', pros: 'Balanced', cons: 'No tricks' },
+  axe:     { name: 'War Axes', icon: 'axe',     color: '#e3794b', pros: 'Huge damage, pierce armour', cons: 'Light armour' },
+  mace:    { name: 'Maces',    icon: 'mace',    color: '#b48ead', pros: 'Crush heavy armour', cons: 'Weak vs light troops' },
+  spear:   { name: 'Spears',   icon: 'spear',   color: '#88c0d0', pros: 'Shields, strike first', cons: 'Low damage' },
+  javelin: { name: 'Javelins', icon: 'javelin', color: '#a3be8c', pros: '2 volleys before melee', cons: 'Weak in melee' },
+  ranged:  { name: 'Ranged',   icon: 'bow',     color: '#ebcb8b', pros: 'Volleys, shoots all battle', cons: 'Fragile' },
+  cavalry: { name: 'Cavalry',  icon: 'horse',   color: '#d08770', pros: 'Charge, hunts archers', cons: 'Needs horses' },
+  militia: { name: 'Militia',  icon: 'militia', color: '#999999', pros: 'Free', cons: 'Untrained' },
 };
 // attacker class -> defender class -> damage multiplier
 const CLASS_BONUS = {
@@ -212,11 +229,11 @@ const WEAPONS = {
 //  Tech tree.  tab / col / row position nodes in the tree view.
 // ------------------------------------------------------------
 const TECH_TABS = [
-  { id: 'melee',    name: '⚔️ Melee Weapons', cols: ['Wood', 'Bronze', 'Iron', 'Steel', 'Masterwork'] },
-  { id: 'ranged',   name: '🏹 Ranged Weapons', cols: ['Wood', 'Bronze', 'Iron', 'Steel'] },
-  { id: 'refining', name: '🔥 Refining',       cols: ['Tier I', 'Tier II', 'Tier III', 'Tier IV'] },
-  { id: 'economy',  name: '💰 Economy',        cols: ['Basic', 'Advanced', 'Expert'] },
-  { id: 'military', name: '🛡️ Military & Defence', cols: ['Basic', 'Advanced', 'Expert'] },
+  { id: 'melee',    name: 'Melee', cols: ['Wood', 'Bronze', 'Iron', 'Steel', 'Masterwork'] },
+  { id: 'ranged',   name: 'Ranged', cols: ['Wood', 'Bronze', 'Iron', 'Steel'] },
+  { id: 'refining', name: 'Refining',       cols: ['Tier I', 'Tier II', 'Tier III', 'Tier IV'] },
+  { id: 'economy',  name: 'Economy',        cols: ['Basic', 'Advanced', 'Expert'] },
+  { id: 'military', name: 'Military', cols: ['Basic', 'Advanced', 'Expert'] },
 ];
 
 const TECHS = {
@@ -260,35 +277,35 @@ const TECHS = {
   arbalest:      { tab: 'ranged', col: 3, row: 2, weapon: 'arbalest',      req: ['crossbow', 'ref3'],     cost: { coins: 600, steel: 10, brass: 5 }, days: 3.5 },
 
   // ---- Refining ----
-  ref1:   { tab: 'refining', col: 0, row: 0, name: 'Basic Refinery',  icon: '🪚', desc: 'Unlocks the Refinery building (Tier I): wood → planks, wood → charcoal.', cost: { coins: 50, wood: 20 }, days: 0.6 },
-  ref2:   { tab: 'refining', col: 1, row: 0, name: 'Smelting',        icon: '🔥', desc: 'Refinery Tier II (1.8× speed): ore → iron, copper + tin → bronze, copper + zinc → brass.', req: ['ref1', 'mining'], cost: { coins: 150, planks: 20, stone: 30 }, days: 1.5 },
-  ref3:   { tab: 'refining', col: 2, row: 0, name: 'Blast Furnace',   icon: '🏭', desc: 'Refinery Tier III (2.8× speed): iron + charcoal → steel.', req: ['ref2'], cost: { coins: 400, iron: 20, stone: 60 }, days: 3 },
-  ref4:   { tab: 'refining', col: 3, row: 0, name: 'Crucible Works',  icon: '💠', desc: 'Refinery Tier IV (4.2× speed): steel + brass → Damascus steel.', req: ['ref3', 'bellows'], cost: { coins: 900, steel: 20, brass: 15 }, days: 4.5 },
-  mining: { tab: 'refining', col: 0, row: 1, name: 'Mining',          icon: '⛏️', desc: 'Unlocks the Mine building to dig iron, copper, tin and zinc ore.', cost: { coins: 60, wood: 30 }, days: 0.8 },
-  deepMining: { tab: 'refining', col: 1, row: 1, name: 'Deep Shafts', icon: '🕳️', desc: 'Mines produce +50% ore.', req: ['mining', 'ref1'], cost: { coins: 180, planks: 30 }, days: 1.5 },
-  bellows:{ tab: 'refining', col: 2, row: 1, name: 'Bellows',         icon: '💨', desc: 'All refineries work +25% faster.', req: ['ref2'], cost: { coins: 260, planks: 30, iron: 10 }, days: 2 },
+  ref1:   { tab: 'refining', col: 0, row: 0, name: 'Basic Refinery',  icon: 'saw', desc: 'Sawmill & Charcoal Kiln. Tier I refineries.', cost: { coins: 50, wood: 20 }, days: 0.6 },
+  ref2:   { tab: 'refining', col: 1, row: 0, name: 'Smelting',        icon: 'furnace', desc: 'Iron Smelter, Bronze Foundry, Brass Works. Tier II upgrades (1.8× speed).', req: ['ref1', 'mining'], cost: { coins: 150, planks: 20, stone: 30 }, days: 1.5 },
+  ref3:   { tab: 'refining', col: 2, row: 0, name: 'Blast Furnace',   icon: 'flame', desc: 'Steelworks. Tier III upgrades (2.8× speed).', req: ['ref2'], cost: { coins: 400, iron: 20, stone: 60 }, days: 3 },
+  ref4:   { tab: 'refining', col: 3, row: 0, name: 'Crucible Works',  icon: 'crucible', desc: 'Crucible for Damascus steel. Tier IV upgrades (4.2× speed).', req: ['ref3', 'bellows'], cost: { coins: 900, steel: 20, brass: 15 }, days: 4.5 },
+  mining: { tab: 'refining', col: 0, row: 1, name: 'Mining',          icon: 'pick', desc: 'Unlocks Mines.', cost: { coins: 60, wood: 30 }, days: 0.8 },
+  deepMining: { tab: 'refining', col: 1, row: 1, name: 'Deep Shafts', icon: 'pick', desc: 'Mines +50%.', req: ['mining', 'ref1'], cost: { coins: 180, planks: 30 }, days: 1.5 },
+  bellows:{ tab: 'refining', col: 2, row: 1, name: 'Bellows',         icon: 'speed', desc: 'Refineries +25% speed.', req: ['ref2'], cost: { coins: 260, planks: 30, iron: 10 }, days: 2 },
 
   // ---- Economy ----
-  tools:        { tab: 'economy', col: 0, row: 0, name: 'Better Tools',   icon: '🔨', desc: '+25% output from lumber camps, quarries, mines and expeditions.', cost: { coins: 60, wood: 30 }, days: 0.8 },
-  cropRotation: { tab: 'economy', col: 1, row: 0, name: 'Crop Rotation',  icon: '🌾', desc: 'Farms produce +30% food.', req: ['tools'], cost: { coins: 120, planks: 15 }, days: 1.2 },
-  masonry:      { tab: 'economy', col: 0, row: 1, name: 'Masonry',        icon: '🧱', desc: 'Houses can be upgraded to Level 3.', cost: { coins: 100, stone: 40 }, days: 1 },
-  architecture: { tab: 'economy', col: 1, row: 1, name: 'Architecture',   icon: '🏛️', desc: 'All houses hold +25% more people.', req: ['masonry'], cost: { coins: 250, planks: 40, stone: 60 }, days: 2 },
-  tradeGuild:   { tab: 'economy', col: 0, row: 2, name: 'Trade Guild',    icon: '⚖️', desc: 'Marketplace can be upgraded to Level 3 (best prices).', cost: { coins: 150 }, days: 1 },
-  banking:      { tab: 'economy', col: 1, row: 2, name: 'Banking',        icon: '🏦', desc: '+30% taxes.', req: ['tradeGuild'], cost: { coins: 300, brass: 5 }, days: 2 },
-  horsemanship: { tab: 'economy', col: 0, row: 3, name: 'Horsemanship',   icon: '🐎', desc: 'Unlocks Stables (breed horses) for cavalry.', cost: { coins: 150, planks: 20 }, days: 1.2 },
-  husbandry:    { tab: 'economy', col: 1, row: 3, name: 'Animal Husbandry', icon: '🐄', desc: 'Farms +20% food and stables breed +50% horses.', req: ['horsemanship', 'cropRotation'], cost: { coins: 250, planks: 30 }, days: 2 },
-  guilds:       { tab: 'economy', col: 2, row: 2, name: 'Merchant Republic', icon: '👑', desc: 'Conquered kingdoms pay +50% tribute.', req: ['banking'], cost: { coins: 600, steel: 5 }, days: 3 },
+  tools:        { tab: 'economy', col: 0, row: 0, name: 'Better Tools',   icon: 'hammer', desc: 'Camps, quarries, mines, expeditions +25%.', cost: { coins: 60, wood: 30 }, days: 0.8 },
+  cropRotation: { tab: 'economy', col: 1, row: 0, name: 'Crop Rotation',  icon: 'wheat', desc: 'Farms +30%.', req: ['tools'], cost: { coins: 120, planks: 15 }, days: 1.2 },
+  masonry:      { tab: 'economy', col: 0, row: 1, name: 'Masonry',        icon: 'wall', desc: 'House level 3.', cost: { coins: 100, stone: 40 }, days: 1 },
+  architecture: { tab: 'economy', col: 1, row: 1, name: 'Architecture',   icon: 'house', desc: 'Houses +25% capacity.', req: ['masonry'], cost: { coins: 250, planks: 40, stone: 60 }, days: 2 },
+  tradeGuild:   { tab: 'economy', col: 0, row: 2, name: 'Trade Guild',    icon: 'scales', desc: 'Market level 3.', cost: { coins: 150 }, days: 1 },
+  banking:      { tab: 'economy', col: 1, row: 2, name: 'Banking',        icon: 'coin', desc: 'Sell prices +15%.', req: ['tradeGuild'], cost: { coins: 300, brass: 5 }, days: 2 },
+  horsemanship: { tab: 'economy', col: 0, row: 3, name: 'Horsemanship',   icon: 'horse', desc: 'Unlocks Stables.', cost: { coins: 150, planks: 20 }, days: 1.2 },
+  husbandry:    { tab: 'economy', col: 1, row: 3, name: 'Animal Husbandry', icon: 'horseshoe', desc: 'Farms +20%, horses +50%.', req: ['horsemanship', 'cropRotation'], cost: { coins: 250, planks: 30 }, days: 2 },
+  guilds:       { tab: 'economy', col: 2, row: 2, name: 'Merchant Republic', icon: 'crown', desc: 'Trade margin −40%.', req: ['banking'], cost: { coins: 600, steel: 5 }, days: 3 },
 
   // ---- Military & defence ----
-  palisade:    { tab: 'military', col: 0, row: 0, name: 'Palisade',       icon: '🪵', desc: 'Wooden walls: defenders take 10% less damage in raids.', cost: { coins: 60, wood: 60 }, days: 0.8 },
-  stoneWalls:  { tab: 'military', col: 1, row: 0, name: 'Stone Walls',    icon: '🏰', desc: 'Defenders take 25% less damage in raids.', req: ['palisade', 'masonry'], cost: { coins: 250, stone: 150 }, days: 2 },
-  watchtowers: { tab: 'military', col: 0, row: 1, name: 'Watchtowers',    icon: '🗼', desc: 'Unlocks Watchtowers that shoot raiders.', req: ['palisade'], cost: { coins: 100, stone: 30 }, days: 1 },
-  drill:       { tab: 'military', col: 0, row: 2, name: 'Drill Yards',    icon: '🎯', desc: 'All soldiers +10% attack.', cost: { coins: 120 }, days: 1 },
-  warAcademy:  { tab: 'military', col: 1, row: 2, name: 'War Academy',    icon: '📜', desc: 'All soldiers +15% more attack.', req: ['drill'], cost: { coins: 400, iron: 15 }, days: 2.5 },
-  tactics:     { tab: 'military', col: 2, row: 2, name: 'Battle Tactics', icon: '♟️', desc: 'Ranged & javelin units get +1 extra volley.', req: ['warAcademy'], cost: { coins: 700, steel: 10 }, days: 3 },
-  chainmail:   { tab: 'military', col: 0, row: 3, name: 'Chainmail',      icon: '⛓️', desc: 'All soldiers +1 armour.', req: ['ref2'], cost: { coins: 200, iron: 20 }, days: 2 },
-  plateArmor:  { tab: 'military', col: 1, row: 3, name: 'Plate Armour',   icon: '🛡️', desc: 'All soldiers +2 more armour.', req: ['chainmail', 'ref3'], cost: { coins: 600, steel: 20 }, days: 3.5 },
-  logistics:   { tab: 'military', col: 0, row: 4, name: 'Logistics',      icon: '🗺️', desc: 'Armies march 35% faster.', cost: { coins: 150, food: 100 }, days: 1.2 },
+  palisade:    { tab: 'military', col: 0, row: 0, name: 'Palisade',       icon: 'wall', desc: 'Taller palisade. Defenders take −10% damage.', cost: { coins: 60, wood: 60 }, days: 0.8 },
+  stoneWalls:  { tab: 'military', col: 1, row: 0, name: 'Stone Walls',    icon: 'castle', desc: 'Stone walls. Defenders take −25% damage.', req: ['palisade', 'masonry'], cost: { coins: 250, stone: 150 }, days: 2 },
+  watchtowers: { tab: 'military', col: 0, row: 1, name: 'Watchtowers',    icon: 'tower', desc: 'Unlocks Watchtowers.', req: ['palisade'], cost: { coins: 100, stone: 30 }, days: 1 },
+  drill:       { tab: 'military', col: 0, row: 2, name: 'Drill Yards',    icon: 'sword', desc: 'Attack +10%.', cost: { coins: 120 }, days: 1 },
+  warAcademy:  { tab: 'military', col: 1, row: 2, name: 'War Academy',    icon: 'tech', desc: 'Attack +15%.', req: ['drill'], cost: { coins: 400, iron: 15 }, days: 2.5 },
+  tactics:     { tab: 'military', col: 2, row: 2, name: 'Battle Tactics', icon: 'bow', desc: '+1 volley for ranged.', req: ['warAcademy'], cost: { coins: 700, steel: 10 }, days: 3 },
+  chainmail:   { tab: 'military', col: 0, row: 3, name: 'Chainmail',      icon: 'armor', desc: 'Armour +1.', req: ['ref2'], cost: { coins: 200, iron: 20 }, days: 2 },
+  plateArmor:  { tab: 'military', col: 1, row: 3, name: 'Plate Armour',   icon: 'shield', desc: 'Armour +2.', req: ['chainmail', 'ref3'], cost: { coins: 600, steel: 20 }, days: 3.5 },
+  logistics:   { tab: 'military', col: 0, row: 4, name: 'Logistics',      icon: 'map', desc: 'March 35% faster.', cost: { coins: 150, food: 100 }, days: 1.2 },
 };
 
 // ------------------------------------------------------------
@@ -297,50 +314,33 @@ const TECHS = {
 const KINGDOMS = [
   { id: 'oakhold', name: 'Oakhold', ruler: 'Baron Aldric the Stout', color: '#7fa650', dist: 2, angle: 200,
     garrison: { woodSpear: 25, woodSword: 20, sling: 15, woodJavelin: 10 }, growth: 0.012,
-    loot: { coins: 300, wood: 200, food: 300 }, tribute: 12, land: 2,
+    loot: { coins: 300, wood: 200, food: 300 }, land: 2,
     trade: { wood: 0.75, food: 0.8, planks: 0.85, iron: 1.2, steel: 1.25 },
-    desc: 'A sleepy timber barony. Cheap wood & food.' },
+    desc: 'Timber barony' },
   { id: 'coppermarch', name: 'Coppermarch', ruler: 'Lady Verena', color: '#d08a4a', dist: 3, angle: 140,
     garrison: { bronzeSpear: 35, bronzeSword: 25, shortBow: 25, bronzeJavelin: 15 }, growth: 0.015,
-    loot: { coins: 600, copperOre: 120, zincOre: 80, brass: 20 }, tribute: 20, land: 2,
+    loot: { coins: 600, copperOre: 120, zincOre: 80, brass: 20 }, land: 2,
     trade: { copperOre: 0.7, zincOre: 0.7, brass: 0.8, food: 1.2, wood: 1.15 },
-    desc: 'Copper mines in the hills. Cheap copper, zinc & brass.' },
+    desc: 'Hill mines' },
   { id: 'stonebrook', name: 'Stonebrook', ruler: 'Thane Morwick', color: '#9aa3ad', dist: 3, angle: 255,
     garrison: { bronzeSpear: 30, bronzeAxe: 25, bronzeMace: 20, sling: 30 }, growth: 0.015,
-    loot: { coins: 600, stone: 300, tinOre: 100, bronze: 25 }, tribute: 20, land: 2,
+    loot: { coins: 600, stone: 300, tinOre: 100, bronze: 25 }, land: 2,
     trade: { stone: 0.7, tinOre: 0.7, bronze: 0.8, planks: 1.2, horses: 1.2 },
-    desc: 'Quarry-town of hard men. Cheap stone, tin & bronze.' },
+    desc: 'Quarry town' },
   { id: 'ironvale', name: 'Ironvale', ruler: 'Duke Harrow', color: '#5e6b7a', dist: 4, angle: 320,
     garrison: { ironSword: 40, ironSpear: 40, longBow: 30, ironAxe: 20, ironJavelin: 15 }, growth: 0.018,
-    loot: { coins: 1000, ironOre: 200, iron: 60, charcoal: 100 }, tribute: 32, land: 2,
+    loot: { coins: 1000, ironOre: 200, iron: 60, charcoal: 100 }, land: 2,
     trade: { ironOre: 0.7, iron: 0.75, charcoal: 0.75, food: 1.25, brass: 1.2 },
-    desc: 'Forges of the north. Cheap iron ore, iron & charcoal.' },
+    desc: 'Northern forges' },
   { id: 'ravenshire', name: 'Ravenshire', ruler: 'Countess Isolde', color: '#3b3f58', dist: 5, angle: 30,
     garrison: { ironLance: 30, ironSpear: 40, crossbow: 40, steelSword: 25, ironMace: 20 }, growth: 0.02,
-    loot: { coins: 1600, horses: 25, steel: 40, iron: 80 }, tribute: 45, land: 2,
+    loot: { coins: 1600, horses: 25, steel: 40, iron: 80 }, land: 2,
     trade: { horses: 0.65, food: 0.9, steel: 0.9, stone: 1.2, planks: 1.15 },
-    desc: 'Horse lords of the plains. Cheap horses.' },
+    desc: 'Horse lords' },
   { id: 'dragonspire', name: 'Dragonspire', ruler: 'King Oswin the Iron Crown', color: '#a33b3b', dist: 6, angle: 85,
     garrison: { steelSword: 60, steelPike: 60, knightLance: 35, arbalest: 50, steelAxe: 30, morningStar: 20 }, growth: 0.022,
-    loot: { coins: 3000, steel: 100, damascus: 20 }, tribute: 70, land: 3,
+    loot: { coins: 3000, steel: 100, damascus: 20 }, land: 3,
     trade: { steel: 0.75, damascus: 0.7, iron: 0.85, food: 1.3, wood: 1.3 },
-    desc: 'The great kingdom. Conquer it and you rule the realm.' },
+    desc: 'The great kingdom' },
 ];
 
-// ------------------------------------------------------------
-//  Objectives / story
-// ------------------------------------------------------------
-const OBJECTIVES = [
-  { id: 'sendWood',  text: 'Send 50 villagers to gather wood (Town Hall → Expeditions)', reward: {} },
-  { id: 'getWood',   text: 'Wait for the wood gatherers to return with 100 wood', reward: {} },
-  { id: 'houses',    text: 'Build 5 new houses to attract settlers', reward: { coins: 100 } },
-  { id: 'growth',    text: 'Grow your town to 240 people', reward: { coins: 100, food: 100 } },
-  { id: 'research',  text: 'Hover the Forge → Tech Tree, and research any technology', reward: { coins: 80 } },
-  { id: 'refinery',  text: 'Research Basic Refinery and build a Refinery', reward: { wood: 60 } },
-  { id: 'craft',     text: 'Forge 10 weapons at the Forge', reward: { coins: 100 } },
-  { id: 'recruit',   text: 'Train 10 soldiers at the Barracks', reward: { coins: 100 } },
-  { id: 'trade',     text: 'Buy or sell goods at the Marketplace', reward: { coins: 50 } },
-  { id: 'defend',    text: 'Repel a raid on your town', reward: { coins: 200 } },
-  { id: 'conquer',   text: 'Conquer a neighbouring kingdom (Barracks → World Map)', reward: { coins: 300 } },
-  { id: 'emperor',   text: 'Conquer every kingdom and become Emperor', reward: {} },
-];

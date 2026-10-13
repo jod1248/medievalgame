@@ -57,8 +57,9 @@ function generateMap() {
     if (hash2(x, y, 11) < p) set(x, y, T_FOREST);
   }
   // Roads
-  for (let x = 5; x <= 24; x++) set(x, 22, T_ROAD);
-  for (let y = 11; y <= 33; y++) set(17, y, T_ROAD);
+  // main roads run to the map edge so they pass through the wall gates
+  for (let x = 0; x <= 24; x++) set(x, 22, T_ROAD);
+  for (let y = 0; y < MAP_H; y++) set(17, y, T_ROAD);
   for (let y = 14; y <= 30; y++) set(9, y, T_ROAD);
   // Command center plaza
   for (let y = 16; y <= 27; y++) for (let x = 24; x <= 31; x++) set(x, y, T_PLAZA);
@@ -73,7 +74,7 @@ function newGame() {
     version: 1,
     time: 0,                 // in days
     speed: 1, paused: false,
-    coins: 400,
+    coins: 600,
     res: {},
     pop: 200, popAcc: 0,
     map: null, territory: START_TERRITORY,
@@ -85,10 +86,8 @@ function newGame() {
     kingdoms: KINGDOMS.map(k => ({ id: k.id, conquered: false, garrison: { ...k.garrison }, known: true })),
     market: {},              // partnerId -> res -> demand factor
     raid: { next: 24, incoming: null, count: 0 },
-    obj: 0, started: false, won: false, lost: false,
+    tut: 0, started: false, won: false, lost: false,
     stats: { woodGathered: 0, housesBuilt: 0, weaponsForged: 0, recruited: 0, trades: 0, raidsRepelled: 0, conquered: 0, researched: 0 },
-    log: [],
-    finance: { tax: 0, wages: 0, tribute: 0, food: 0 },
   };
   for (const r of RES_ORDER) G.res[r] = 0;
   G.res.food = 400;
@@ -136,7 +135,8 @@ function canPlace(type, x, y) {
 function placeBuilding(type, x, y, instant) {
   const def = BUILDINGS[type];
   const b = { id: G.nextId++, type, x, y, level: 1, built: instant ? 1 : 0, workers: 0, paused: false, prog: 0 };
-  if (type === 'refinery') b.recipe = 'planks';
+  if (BUILDINGS[type].refinery) b.pct = 100;
+  b.born = (typeof performance !== 'undefined') ? performance.now() : 0;
   if (type === 'mine') b.ore = 'ironOre';
   let cleared = 0;
   for (let dy = 0; dy < def.size; dy++) for (let dx = 0; dx < def.size; dx++) {
@@ -215,28 +215,35 @@ function fmt(n) {
   if (Math.abs(n) < 10 && Math.abs(n - Math.round(n)) > 0.05) return n.toFixed(1);
   return Math.floor(n + 1e-6).toLocaleString();
 }
-function resIcon(k) { return k === 'coins' ? '🪙' : (RES[k] ? RES[k].icon : '?'); }
+function resIc(k, cls = '') {
+  if (k === 'coins') return ic('coin', cls, '#f1c75b');
+  const r = RES[k];
+  return r ? ic(r.icon, cls, r.color) : '';
+}
 function resName(k) { return k === 'coins' ? 'Coins' : (RES[k] ? RES[k].name : k); }
 function costHTML(cost, mult = 1) {
   const parts = [];
   for (const k in cost) {
     const need = cost[k] * mult;
     const ok = getAmount(k) + 1e-9 >= need;
-    parts.push(`<span class="cost ${ok ? '' : 'missing'}" title="${resName(k)}">${resIcon(k)} ${fmt(need)}</span>`);
+    parts.push(`<span class="cost ${ok ? '' : 'missing'}" title="${resName(k)}">${resIc(k)}${fmt(need)}</span>`);
   }
-  return parts.join(' ') || '<span class="cost">Free</span>';
+  return parts.join('');
+}
+// amounts gained or lost (never coloured as "can't afford")
+function gainHTML(obj, sign = '+') {
+  return Object.entries(obj).map(([k, n]) => `<span class="cost" title="${resName(k)}">${resIc(k)}${sign}${fmt(n)}</span>`).join('');
 }
 function unitsHTML(units) {
   const parts = [];
-  for (const k in units) if (units[k] >= 1) parts.push(`<span class="unitchip cls-${WEAPONS[k].cls}">${Math.round(units[k])} ${WEAPONS[k].unit}</span>`);
-  return parts.join(' ') || '<i>none</i>';
+  for (const k in units) if (units[k] >= 1) parts.push(`<span class="unitchip cls-${WEAPONS[k].cls}" title="${WEAPONS[k].unit}">${ic(CLASSES[WEAPONS[k].cls].icon)}${Math.round(units[k])}</span>`);
+  return parts.join('') || '—';
 }
 function unitCount(units) { let n = 0; for (const k in units) n += units[k]; return n; }
 
-function log(msg, kind = 'info') {
-  G.log.unshift({ day: day(), msg, kind });
-  if (G.log.length > 60) G.log.length = 60;
-  if (typeof UI !== 'undefined') UI.toast(msg, kind);
+// Short notifications only; `icon` is an icon name
+function log(msg, kind = 'info', icon) {
+  if (typeof UI !== 'undefined') UI.toast(msg, kind, icon);
 }
 
 // ------------------------------------------------------------

@@ -22,7 +22,6 @@ const Sim = (() => {
     marketDrift(dt);
     kingdomGrowth(dt);
     if (Math.floor(G.time) !== dayMark) { dayMark = Math.floor(G.time); newDay(); }
-    Objectives.check();
   }
 
   function construction(dt) {
@@ -31,14 +30,15 @@ const Sim = (() => {
         b.built = Math.min(1, b.built + dt / BUILDINGS[b.type].buildDays);
         if (b.built >= 1) {
           if (b.type === 'house') G.stats.housesBuilt++;
-          log(`${BUILDINGS[b.type].name} completed.`, 'good');
+          b.born = performance.now();
         }
       } else if (b.upg !== undefined) {
         b.upg += dt / ((BUILDINGS[b.type].buildDays || 1) * 1.5);
         if (b.upg >= 1) {
           delete b.upg;
           b.level++;
-          log(`${BUILDINGS[b.type].name} upgraded to level ${b.level}.`, 'good');
+          b.born = performance.now();
+          log(`${BUILDINGS[b.type].name} ${TIER_NAMES[b.level]}`, 'good', 'up');
         }
       }
     }
@@ -46,9 +46,10 @@ const Sim = (() => {
 
   function staffing() {
     let avail = availableWorkers();
-    const order = { farm: 0, lumber: 1, quarry: 2, mine: 3, refinery: 4, stables: 5 };
+    const order = { farm: 0, lumber: 1, quarry: 2, mine: 3, stables: 5 };
+    const rank = b => order[b.type] ?? 4;   // refineries come after raw producers
     const list = G.buildings.filter(b => BUILDINGS[b.type].workers)
-      .sort((a, b) => (order[a.type] - order[b.type]) || (a.id - b.id));
+      .sort((a, b) => (rank(a) - rank(b)) || (a.id - b.id));
     for (const b of list) {
       if (b.built < 1 || b.paused) { b.workers = 0; continue; }
       const slots = BUILDINGS[b.type].workers[b.level - 1];
@@ -81,11 +82,11 @@ const Sim = (() => {
         const key = def.produces === 'ore' ? b.ore : def.produces;
         addRes(key, amount);
         if (key === 'wood') G.stats.woodGathered += amount;
-      } else if (b.type === 'refinery') {
-        const r = RECIPES[b.recipe];
-        if (!r || r.tier > b.level) { b.active = false; continue; }
-        const staff = b.workers / def.workers[b.level - 1];
-        const speed = REFINERY_SPEED[b.level - 1] * (has('bellows') ? 1.25 : 1) * staff * eff;
+      } else if (def.refinery) {
+        const r = RECIPES[def.recipe];
+        const pct = (b.pct ?? 100) / 100;     // player-chosen share of capacity
+        if (pct <= 0) { b.active = false; continue; }
+        const speed = refinerySpeed(b) * pct * eff;
         if (b.prog <= 0) {
           // need inputs to start a batch
           if (!canAfford(r.in)) { b.active = false; b.starved = true; continue; }
@@ -105,17 +106,13 @@ const Sim = (() => {
     }
   }
 
-  function taxRate() {
-    const th = findBuilding('townhall');
-    return BUILDINGS.townhall.tax[th.level - 1] * (has('banking') ? 1.3 : 1);
-  }
-  function tributePerDay() {
-    let t = 0;
-    for (const k of G.kingdoms) if (k.conquered) t += kingdomDef(k.id).tribute;
-    return t * (has('guilds') ? 1.5 : 1);
+  // full-capacity speed of a refinery (batches scale with staffing)
+  function refinerySpeed(b) {
+    const def = BUILDINGS[b.type];
+    const staff = (b.workers || 0) / def.workers[b.level - 1];
+    return REFINERY_SPEED[b.level - 1] * (has('bellows') ? 1.25 : 1) * staff;
   }
   function wagesPerDay() { return employedWorkers() * WAGE_WORKER + totalSoldiers() * WAGE_SOLDIER; }
-  function taxPerDay() { return civilians() * taxRate(); }
   function foodPerDay() {
     let prod = 0;
     for (const b of G.buildings) if (b.type === 'farm' && b.workers) {
@@ -125,7 +122,8 @@ const Sim = (() => {
   }
 
   function finances(dt) {
-    G.coins += (taxPerDay() + tributePerDay() - wagesPerDay()) * dt;
+    // no passive income: coins come from trade, loot and raids only
+    G.coins = Math.max(0, G.coins - wagesPerDay() * dt);
     G.res.food -= G.pop * FOOD_PER_PERSON * dt;
     if (G.res.food < 0) G.res.food = 0;
   }
@@ -143,12 +141,12 @@ const Sim = (() => {
     if (G.popAcc >= 1) {
       const n = Math.min(Math.floor(G.popAcc), Math.max(0, cap - G.pop));
       G.pop += n; G.popAcc -= Math.floor(G.popAcc);
-      if (n > 0) UI.floatText(`+${n} settlers`);
+      if (n > 0) UI.floatText(`+${n}`);
     } else if (G.popAcc <= -1) {
       const n = Math.floor(-G.popAcc);
       G.popAcc += n;
       removePeople(n);
-      if (!fed) log(`${n} people left — there is no food!`, 'bad');
+      if (!fed) log(`−${n} · no food`, 'bad', 'food');
     }
     if (G.pop < 15 && !G.lost) {
       G.lost = true;
@@ -175,7 +173,7 @@ const Sim = (() => {
     if (G.research.prog >= t.days) {
       G.techs[G.research.id] = true;
       G.stats.researched++;
-      log(`Research complete: ${techName(G.research.id)}!`, 'good');
+      log(techName(G.research.id), 'good', 'tech');
       G.research = null;
     }
   }
@@ -192,12 +190,16 @@ const Sim = (() => {
     }
     if (q.n <= 0) {
       G.forgeQueue.shift();
-      log(`The forge finished a batch of ${WEAPONS[q.w].name}s.`, 'good');
+      log(`${WEAPONS[q.w].name}`, 'good', 'anvil');
     }
   }
 
+  function expBonus() {
+    return (has('tools') ? 1.25 : 1) * BUILDINGS.townhall.expBonus[findBuilding('townhall').level - 1];
+  }
+  function expSlots() { return BUILDINGS.townhall.expSlots[findBuilding('townhall').level - 1]; }
   function expeditions(dt) {
-    const mult = has('tools') ? 1.25 : 1;
+    const mult = expBonus();
     for (const e of G.expeditions) e.t -= dt;
     const done = G.expeditions.filter(e => e.t <= 0);
     G.expeditions = G.expeditions.filter(e => e.t > 0);
@@ -211,17 +213,16 @@ const Sim = (() => {
         addRes(k, got[k]);
         if (k === 'wood') G.stats.woodGathered += got[k];
       }
-      log(`${e.people} villagers returned from "${EXPEDITIONS[e.type].name}" with ${Object.entries(got).map(([k, n]) => `${n} ${RES[k].name}`).join(', ')}.`, 'good');
+      log(Object.entries(got).map(([k, n]) => `${resIc(k)}+${n}`).join(' '), 'good', 'compass');
     }
   }
 
   function startExpedition(type, people) {
     people = Math.floor(people);
     if (people < 1 || people > availableWorkers()) return false;
-    if (G.expeditions.length >= 4) { log('At most 4 expeditions can be out at once.', 'bad'); return false; }
+    if (G.expeditions.length >= expSlots()) return false;
     const d = EXPEDITIONS[type].days;
     G.expeditions.push({ id: G.nextId++, type, people, t: d, total: d });
-    log(`${people} villagers set out to ${EXPEDITIONS[type].name.toLowerCase()}.`);
     return true;
   }
 
@@ -280,7 +281,7 @@ const Sim = (() => {
     if (!unitCount(sent)) return false;
     const d = marchDays(target);
     G.campaigns.push({ id: G.nextId++, target, units: sent, phase: 'march', t: d, total: d });
-    log(`Your army of ${unitCount(sent)} marches on ${kingdomDef(target).name}! (${d.toFixed(1)} days)`, 'warn');
+    log(`${kingdomDef(target).name}`, 'warn', 'flag');
     return true;
   }
 
@@ -295,30 +296,24 @@ const Sim = (() => {
         // apply losses
         c.units = cleanUnits(res.A.end);
         for (const k in res.D.lost) ks.garrison[k] = Math.max(0, (ks.garrison[k] || 0) - res.D.lost[k]);
-        const lostMen = unitCount(res.A.lost);
-        G.pop -= lostMen;
-        let title;
-        if (res.winner === 'A') {
+        G.pop -= unitCount(res.A.lost);
+        const won = res.winner === 'A';
+        if (won) {
           ks.conquered = true;
           G.stats.conquered++;
           refund(kd.loot);
           G.territory = Math.min(MAX_TERRITORY, G.territory + kd.land);
           Render.terrainDirty = true;
-          title = `Victory! ${kd.name} has fallen`;
-          log(`${kd.name} is conquered! Loot seized, tribute of ${kd.tribute} coins/day, and your lands expand.`, 'good');
-          res.extra = `<p>Loot: ${costHTML(kd.loot)}</p><p>${kd.ruler} bends the knee. ${kd.name} will pay <b>${kd.tribute} 🪙/day</b> in tribute, and your territory expands.</p>`;
-          if (G.kingdoms.every(k => k.conquered)) { G.won = true; setTimeout(() => UI.gameOver(true), 1500); }
-        } else {
-          title = `Defeat at ${kd.name}`;
-          log(`Your army was repulsed by ${kd.name}. The survivors retreat.`, 'bad');
+          if (G.kingdoms.every(k => k.conquered)) G.won = true;
         }
         c.phase = 'return'; c.t = c.total;
-        UI.battleReport(title, res, `Your army`, kd.name);
         if (!unitCount(c.units)) G.campaigns = G.campaigns.filter(x => x !== c);
+        Battle.play({ res, playerSide: 'A', enemy: kd, setting: 'castle', won, loot: won ? kd.loot : null,
+          after: () => { if (G.won) UI.gameOver(true); } });
       } else {
         for (const k in c.units) G.army[k] = (G.army[k] || 0) + c.units[k];
         G.campaigns = G.campaigns.filter(x => x !== c);
-        log(`Your army returned home with ${unitCount(c.units)} soldiers.`);
+        log(`+${unitCount(c.units)}`, 'info', 'flag');
       }
     }
   }
@@ -343,8 +338,8 @@ const Sim = (() => {
       const units = {};
       for (const k in ks.garrison) { const n = Math.round(ks.garrison[k] * frac); if (n > 0) units[k] = n; }
       r.incoming = { from: src, units, eta: r.next };
-      log(`⚠️ Scouts report a raiding party from ${kingdomDef(src).name} (${unitCount(units)} men) — arriving in 3 days!`, 'bad');
-      UI.raidWarning();
+      log(`${unitCount(units)}`, 'bad', 'warn');
+      UI.renderAlert();
     }
     if (r.incoming && G.time >= r.incoming.eta) {
       const inc = r.incoming;
@@ -368,14 +363,13 @@ const Sim = (() => {
     // their losses weaken their garrison
     const ks = kingdomState(inc.from);
     for (const k in res.A.lost) ks.garrison[k] = Math.max(0, (ks.garrison[k] || 0) - res.A.lost[k]);
-    let title;
-    if (res.winner === 'D') {
+    const won = res.winner === 'D';
+    const out = { res, playerSide: 'D', enemy: kd, setting: 'town', won };
+    if (won) {
       G.stats.raidsRepelled++;
       const loot = Math.round(30 + unitCount(inc.units) * 3);
       G.coins += loot;
-      title = `Raid repelled!`;
-      res.extra = `<p>The raiders from ${kd.name} flee. You collect <b>${loot} 🪙</b> in abandoned gear.</p>`;
-      log(`The raid from ${kd.name} was repelled!`, 'good');
+      out.loot = { coins: loot };
     } else {
       const stolen = {};
       for (const k of RES_ORDER) { const n = Math.floor(G.res[k] * 0.25); if (n > 0) { stolen[k] = n; G.res[k] -= n; } }
@@ -383,17 +377,15 @@ const Sim = (() => {
       const extraDead = Math.floor(G.pop * 0.04);
       removePeople(extraDead);
       const houses = G.buildings.filter(b => b.type === 'house');
-      let burned = '';
       if (houses.length > 5) {
         const h = houses[Math.floor(Math.random() * houses.length)];
-        if (h.level > 1) { h.level--; burned = 'A house was damaged.'; }
-        else { G.buildings = G.buildings.filter(b => b !== h); burned = 'A house was burned to the ground.'; }
+        if (h.level > 1) h.level--;
+        else G.buildings = G.buildings.filter(b => b !== h);
       }
-      title = `The town was sacked!`;
-      res.extra = `<p>Raiders from ${kd.name} plundered: ${costHTML(stolen)}</p><p>${extraDead} villagers were killed. ${burned}</p>`;
-      log(`Raiders from ${kd.name} sacked the town!`, 'bad');
+      out.stolen = stolen;
+      out.dead = extraDead;
     }
-    UI.battleReport(title, res, kd.name, 'Your defenders', true);
+    Battle.play(out);
   }
 
   // ---------------- Market ----------------
@@ -409,8 +401,9 @@ const Sim = (() => {
     const m = findBuilding('market');
     let spread = BUILDINGS.market.spread[m.level - 1];
     if (ks.conquered) spread *= 0.6;
+    if (has('guilds')) spread *= 0.6;
     const base = RES[r].price * (kd.trade[r] || 1) * demand(pid, r);
-    return buying ? base * (1 + spread) : base * (1 - spread);
+    return buying ? base * (1 + spread) : base * (1 - spread) * (has('banking') ? 1.15 : 1);
   }
   function trade(pid, r, qty, buying) {
     qty = Math.floor(qty);
@@ -461,7 +454,6 @@ const Sim = (() => {
     if (!techAvailable(id)) return false;
     if (!pay(TECHS[id].cost)) return false;
     G.research = { id, prog: 0 };
-    log(`Began researching ${techName(id)}.`);
     return true;
   }
   function cancelResearch() {
@@ -495,7 +487,6 @@ const Sim = (() => {
     if (req && !has(req)) return false;
     if (!pay(def.upgrade[b.level])) return false;
     b.upg = 0;   // keeps working while the upgrade is built
-    log(`Upgrading ${def.name} to level ${b.level + 1}.`);
     return true;
   }
   function demolish(b) {
@@ -506,7 +497,7 @@ const Sim = (() => {
 
   return {
     tick, startExpedition, recruit, disband, launchCampaign, trade, price, partners, startResearch, cancelResearch,
-    queueWeapon, cancelQueue, upgradeBuilding, demolish, taxPerDay, wagesPerDay, tributePerDay, foodPerDay,
+    queueWeapon, cancelQueue, upgradeBuilding, demolish, wagesPerDay, foodPerDay, refinerySpeed, expBonus, expSlots,
     playerSide, kingdomSide, defenders, militiaCount, marchDays, roundUnits, efficiency,
   };
 })();
@@ -518,34 +509,3 @@ function techName(id) { const t = TECHS[id]; return t.weapon ? WEAPONS[t.weapon]
 function techAvailable(id) { return (TECHS[id].req || []).every(r => G.techs[r]); }
 function weaponUnlocked(w) { const id = Object.keys(TECHS).find(k => TECHS[k].weapon === w); return !!G.techs[id]; }
 
-// ------------------------------------------------------------
-//  Objectives
-// ------------------------------------------------------------
-const Objectives = {
-  done(id) {
-    switch (id) {
-      case 'sendWood': return G.expeditions.some(e => e.type === 'wood' && e.people >= 50) || G.stats.woodGathered >= 100;
-      case 'getWood': return G.stats.woodGathered >= 100;
-      case 'houses': return G.stats.housesBuilt >= 5;
-      case 'growth': return G.pop >= 240;
-      case 'research': return G.stats.researched >= 1;
-      case 'refinery': return G.buildings.some(b => b.type === 'refinery' && b.built >= 1);
-      case 'craft': return G.stats.weaponsForged >= 10;
-      case 'recruit': return G.stats.recruited >= 10;
-      case 'trade': return G.stats.trades >= 1;
-      case 'defend': return G.stats.raidsRepelled >= 1;
-      case 'conquer': return G.stats.conquered >= 1;
-      case 'emperor': return G.won;
-    }
-    return false;
-  },
-  check() {
-    while (G.obj < OBJECTIVES.length && this.done(OBJECTIVES[G.obj].id)) {
-      const o = OBJECTIVES[G.obj];
-      refund(o.reward);
-      const rw = Object.keys(o.reward).length ? ' Reward: ' + Object.entries(o.reward).map(([k, n]) => `${n} ${resName(k)}`).join(', ') : '';
-      log(`✔ Objective complete: ${o.text}.${rw}`, 'good');
-      G.obj++;
-    }
-  },
-};
