@@ -7,6 +7,7 @@ const T_GRASS = 0, T_FOREST = 1, T_WATER = 2, T_ROAD = 3, T_PLAZA = 4, T_SAND = 
 const TOWN_CENTER = [20, 22];
 const START_TERRITORY = 11, MAX_TERRITORY = 21;
 const SAVE_KEY = 'emberfall_save_v1';
+const SAVE_VERSION = 2;   // saves from older versions can't be loaded
 
 let G = null;   // the one and only game state
 
@@ -71,7 +72,7 @@ function generateMap() {
 
 function newGame() {
   G = {
-    version: 1,
+    version: SAVE_VERSION,
     time: 0,                 // in days
     speed: 1, paused: false,
     coins: 600,
@@ -253,13 +254,15 @@ function saveGame() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); return true; } catch (e) { return false; }
 }
 function hasSave() {
-  try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
+  try { const s = localStorage.getItem(SAVE_KEY); return !!s && JSON.parse(s).version === SAVE_VERSION; } catch (e) { return false; }
 }
 function loadGame() {
   try {
     const s = localStorage.getItem(SAVE_KEY);
     if (!s) return false;
-    G = JSON.parse(s);
+    const data = JSON.parse(s);
+    if (data.version !== SAVE_VERSION) return false;
+    G = data;
     return true;
   } catch (e) { return false; }
 }
