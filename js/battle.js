@@ -528,14 +528,15 @@ const Battle = (() => {
     scene.background = sky; scene.fog.color.copy(sky);
     const ls = sceneryGroup.userData.lights || [];
     torchLights.forEach((pl, k) => { const l = ls[k]; if (!l) { pl.intensity = 0; return; } pl.position.set(...l); pl.intensity = night * 3.5 * (0.9 + Math.sin(performance.now() / 90 + k) * 0.1); });
-    // camera: frames both armies, drifts slowly, shakes on the charge
-    const width = cur.extent.A + cur.extent.D + 4;
-    const dist = Math.max(16, width * 1.05, cur.depth * 1.3);
-    const t = cur.t;
-    const ang = -0.25 + Math.sin(t * 0.06) * 0.12;
-    const sh = cur.shake;
-    camera.position.set(Math.sin(ang) * dist * 0.75 + (Math.random() - 0.5) * sh, dist * 0.48 + (Math.random() - 0.5) * sh, Math.cos(ang) * dist * 0.82);
-    camera.lookAt((cur.extent.D - cur.extent.A) * 0.15, 0, -cur.depth * 0.08);
+    // camera: fit both armies across the screen, drift slowly, shake on the charge
+    const left = -cur.extent.A - 0.5, right = cur.extent.D + 1.5;
+    const width = right - left, mid = (left + right) / 2;
+    const hfov = 2 * Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect);
+    const pitch = 0.62;
+    const dist = Math.max(7, Math.max(width / 2 / Math.tan(hfov / 2) / 0.92, cur.depth * 0.75 / Math.tan(camera.fov * Math.PI / 360)));
+    const ang = Math.sin(cur.t * 0.07) * 0.1, sh = cur.shake;
+    camera.position.set(mid + Math.sin(ang) * dist * Math.cos(pitch) + (Math.random() - 0.5) * sh, dist * Math.sin(pitch) + (Math.random() - 0.5) * sh, Math.cos(ang) * dist * Math.cos(pitch));
+    camera.lookAt(mid, 0, 0);
     scene.fog.near = dist * 1.3; scene.fog.far = dist * 4;
     renderer.render(scene, camera);
   }
