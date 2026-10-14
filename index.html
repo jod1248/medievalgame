@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Emberfall</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@700;800&family=Alegreya+Sans:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <header id="top">
+    <div id="resbar"></div>
+    <div id="daybox"></div>
+  </header>
+
+  <div id="hud-center">
+    <div id="alert" class="hidden"></div>
+    <div id="tutorial" class="hidden"></div>
+    <div id="placehint" class="hidden"></div>
+  </div>
+
+  <aside id="side"></aside>
+  <footer id="bottom"></footer>
+
+  <div id="hoverpop"></div>
+  <div id="toasts"></div>
+  <div id="floaters"></div>
+
+  <div id="modal">
+    <div class="modal-inner">
+      <div class="modal-head"><h2 id="modal-title"></h2><button id="modal-close" class="close" title="Close"></button></div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="battle" class="hidden">
+    <canvas></canvas>
+    <div class="b-hud">
+      <div class="b-side b-you"><svg class="ic"><use href="#i-castle"/></svg><span>Emberfall</span><b>0</b><div class="b-bar"><div></div></div></div>
+      <svg class="ic b-vs"><use href="#i-battle"/></svg>
+      <div class="b-side b-them"><b>0</b><span></span><div class="b-bar"><div></div></div></div>
+    </div>
+    <div class="b-ctrl">
+      <button data-bact="speed" title="Faster"><svg class="ic"><use href="#i-fast"/></svg></button>
+      <button data-bact="skip" title="Skip"><svg class="ic"><use href="#i-faster"/></svg></button>
+    </div>
+    <div class="b-result hidden"></div>
+  </div>
+
+  <div id="intro" class="hidden"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/combat.js"></script>
+  <script src="js/sim.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/battle.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
