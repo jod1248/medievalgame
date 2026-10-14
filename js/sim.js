@@ -58,7 +58,7 @@ const Sim = (() => {
     }
   }
 
-  function efficiency() { return G.coins > 0 ? 1 : 0.5; }   // unpaid workers slack off
+  function efficiency() { return 1; }
 
   function production(dt) {
     const eff = efficiency();
@@ -112,7 +112,6 @@ const Sim = (() => {
     const staff = (b.workers || 0) / def.workers[b.level - 1];
     return REFINERY_SPEED[b.level - 1] * (has('bellows') ? 1.25 : 1) * staff;
   }
-  function wagesPerDay() { return employedWorkers() * WAGE_WORKER + totalSoldiers() * WAGE_SOLDIER; }
   function foodPerDay() {
     let prod = 0;
     for (const b of G.buildings) if (b.type === 'farm' && b.workers) {
@@ -122,8 +121,7 @@ const Sim = (() => {
   }
 
   function finances(dt) {
-    // no passive income: coins come from trade, loot and raids only
-    G.coins = Math.max(0, G.coins - wagesPerDay() * dt);
+    // no wages and no passive income: coins only change through trade, loot and spending
     G.res.food -= G.pop * FOOD_PER_PERSON * dt;
     if (G.res.food < 0) G.res.food = 0;
   }
@@ -497,7 +495,7 @@ const Sim = (() => {
 
   return {
     tick, startExpedition, recruit, disband, launchCampaign, trade, price, partners, startResearch, cancelResearch,
-    queueWeapon, cancelQueue, upgradeBuilding, demolish, wagesPerDay, foodPerDay, refinerySpeed, expBonus, expSlots,
+    queueWeapon, cancelQueue, upgradeBuilding, demolish, foodPerDay, refinerySpeed, expBonus, expSlots,
     playerSide, kingdomSide, defenders, militiaCount, marchDays, roundUnits, efficiency,
   };
 })();

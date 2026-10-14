@@ -13,13 +13,14 @@ From there you grow the town, build refineries, forge an army, fight off raiders
 - **Animated isometric town:** swaying trees, drifting clouds and birds, villagers walking the streets, smoke and sparks. Drag or use WASD to pan, scroll to zoom (eased).
 - **Day and night:** a full cycle every in-game day (48 seconds at normal speed). At night, windows, torches, forges and lanterns light up, and fireflies come out.
 - **Walls** ring the town, with gates where the roads leave and towers on the corners. They grow when you conquer land and upgrade from palisade to stone.
-- **Command Center** on the east side of town: Forge, Marketplace, Town Hall, Barracks. Hover a building for quick-action icons and click it for details and upgrades.
+- **Command Center** on the east side of town: Forge, Marketplace, Town Hall, Barracks. Click a building to open its panel: actions, stats and a preview of the next level.
 - **Tutorial** walks you through the first steps. It can be skipped and restarted from Help.
 - **Tech tree** at the Forge, with tabs for melee (swords → axes and maces, spears → javelins and cavalry), ranged (sling, bows, crossbows), refining, economy and military.
 - **One refinery per material:** Sawmill, Charcoal Kiln, Iron Smelter, Bronze Foundry, Brass Works, Steelworks, Crucible. Each has a slider for how much of its capacity it uses, and four tiers unlocked by research.
-- **No passive income:** wages are paid from coins earned by trading (market with search), loot and repelled raids.
+- **No wages or passive income:** coins only come from trading (market with search), loot and repelled raids, and only go down when you spend them.
 - **Animated battles** for raids and invasions: armies march in, archers and javelins fire volleys, the lines charge and clash, soldiers fall, and the loser routs. You can speed it up or skip.
-- Custom SVG icon set (no emoji), minimal text with details in tooltips, and autosave to `localStorage`.
+- Detailed hand-painted terrain, textured buildings with cast shadows, plaza props, and fog rolling in at the edge of the map.
+- Custom SVG icon set (no emoji), short labels, and autosave to `localStorage`.
 
 ## Code layout
 | File | Purpose |

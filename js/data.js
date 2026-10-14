@@ -4,8 +4,6 @@
 // ============================================================
 
 const DAY_SECONDS = 48;          // real seconds per in-game day at 1x speed
-const WAGE_WORKER = 0.3;         // coins per worker per day
-const WAGE_SOLDIER = 0.6;        // coins per soldier per day
 const FOOD_PER_PERSON = 0.15;    // food eaten per person per day
 const RECRUIT_COST = 5;          // coins to train one soldier
 

@@ -31,12 +31,11 @@ const UI = (() => {
   //  Top bar
   // ---------------------------------------------------------
   function renderTop() {
-    const wages = Sim.wagesPerDay();
     const f = Sim.foodPerDay();
     const fd = f.prod - f.use;
     const cap = housingCapacity();
     const chips = [
-      chip(ic('coin', '', '#f1c75b'), fmt(G.coins), `−${wages.toFixed(1)}`, `Coins · wages ${wages.toFixed(1)}/day`, 'neg'),
+      chip(ic('coin', '', '#f1c75b'), fmt(G.coins), '', 'Coins'),
       chip(ic('pop'), `${G.pop}<small>/${cap}</small>`, '', `People ${G.pop} / ${cap} · idle ${idleCitizens()} · workers ${employedWorkers()} · soldiers ${totalSoldiers()}`),
       chip(resIc('food'), fmt(G.res.food), `${fd >= 0 ? '+' : ''}${fd.toFixed(1)}`, 'Food per day', fd < 0 ? 'neg' : 'pos'),
     ];
@@ -80,12 +79,12 @@ const UI = (() => {
     { text: 'Send 50 villagers to gather wood', target: '#act-exp', done: () => G.expeditions.some(e => e.type === 'wood') || G.stats.woodGathered >= 100 },
     { text: 'Wait for the wood to arrive', done: () => G.stats.woodGathered >= 100, progress: () => { const e = G.expeditions.find(e => e.type === 'wood'); return e ? 1 - e.t / e.total : 1; } },
     { text: 'Build 5 houses', target: '[data-type=house]', done: () => G.stats.housesBuilt >= 5, progress: () => G.stats.housesBuilt / 5, reward: { wood: 60, coins: 60 } },
-    { text: 'Open the Forge tech tree', target: '#act-tech', pulse: 'forge', done: () => (ui.modal && ui.modal.kind === 'forge' && ui.forgeTab === 'tech') || G.research || G.stats.researched > 0 },
+    { text: 'Click the Forge, then Tech Tree', target: '#act-tech', pulse: 'forge', done: () => (ui.modal && ui.modal.kind === 'forge' && ui.forgeTab === 'tech') || G.research || G.stats.researched > 0 },
     { text: 'Research Basic Refinery', target: '.tnode[data-id=ref1]', done: () => (G.research && G.research.id === 'ref1') || has('ref1'), before: () => { ui.techTab = 'refining'; } },
     { text: 'Build a Sawmill', target: '[data-type=sawmill]', done: () => G.buildings.some(b => b.type === 'sawmill'), reward: { wood: 40, stone: 20 } },
     { text: 'Forge 5 weapons', target: '#act-forge', done: () => G.stats.weaponsForged >= 5, progress: () => G.stats.weaponsForged / 5 },
     { text: 'Train 5 soldiers', target: '#act-army', done: () => G.stats.recruited >= 5, progress: () => G.stats.recruited / 5 },
-    { text: 'Sell goods to pay wages', target: '#act-market', done: () => G.stats.trades >= 1 },
+    { text: 'Sell goods at the Market for coins', target: '#act-market', done: () => G.stats.trades >= 1 },
     { text: 'Defend your walls. Conquer the realm.', final: true },
   ];
   function renderTutorial() {
@@ -120,117 +119,125 @@ const UI = (() => {
       if (locked && d.refinery && d.requires !== 'ref1') continue;   // keep the bar short
       const afford = canAfford(d.cost);
       h += `<button class="bbtn ${ui.placing === t ? 'on' : ''} ${locked ? 'locked' : ''} ${!afford ? 'poor' : ''}" data-act="place" data-type="${t}"
-        title="${tip(d.name + ' — ' + d.desc + (locked ? ' (needs ' + techName(d.requires) + ')' : ''))}">
-        ${ic(d.icon, 'bi')}<span class="bc">${locked ? ic('lock') : costHTML(d.cost)}</span></button>`;
+        title="${tip(d.desc + (locked ? ' Needs ' + techName(d.requires) + '.' : ''))}">
+        ${ic(d.icon, 'bi')}<span class="bn">${d.name}</span><span class="bc">${locked ? ic('lock') + ' ' + techName(d.requires) : costHTML(d.cost)}</span></button>`;
     }
     h += '</div><div class="actlist">';
-    for (const [id, icon, act, kind, tab, title] of [
-      ['act-exp', 'compass', 'open', 'townhall', '', 'Expeditions'],
-      ['act-tech', 'tech', 'open', 'forge', 'tech', 'Tech tree'],
-      ['act-forge', 'anvil', 'open', 'forge', 'craft', 'Forge weapons'],
-      ['act-market', 'scales', 'open', 'market', '', 'Market'],
-      ['act-army', 'battle', 'open', 'army', 'army', 'Army'],
-      ['act-map', 'map', 'open', 'army', 'map', 'World'],
-    ]) h += `<button id="${id}" class="abtn" data-act="${act}" data-kind="${kind}" data-tab="${tab}" title="${title}">${ic(icon)}</button>`;
+    for (const [id, icon, kind, tab, label] of [
+      ['act-exp', 'compass', 'townhall', '', 'Expeditions'],
+      ['act-tech', 'tech', 'forge', 'tech', 'Tech Tree'],
+      ['act-forge', 'anvil', 'forge', 'craft', 'Forge'],
+      ['act-market', 'scales', 'market', '', 'Market'],
+      ['act-army', 'battle', 'army', 'army', 'Army'],
+      ['act-map', 'map', 'army', 'map', 'World Map'],
+    ]) h += `<button id="${id}" class="abtn" data-act="open" data-kind="${kind}" data-tab="${tab}">${ic(icon)}<span>${label}</span></button>`;
     h += '</div>';
     setHTML($('bottom'), h);
   }
 
-  // ---------------------------------------------------------
-  //  Hover popup over a building
-  // ---------------------------------------------------------
-  function setHover(b) {
-    if (b) { ui.hoverB = b; ui.hoverHideT = 0; }
-    Render.hover = b;
-  }
-  function updateHoverPop(dt, overPop) {
-    const pop = $('hoverpop');
-    if (!Render.hover && !overPop) {
-      ui.hoverHideT += dt;
-      if (ui.hoverHideT > 0.45) ui.hoverB = null;
-    }
-    const b = ui.hoverB;
-    if (!b || ui.placing || !G.buildings.includes(b)) { pop.classList.remove('show'); return; }
-    const [sx, sy] = Render.buildingScreenTop(b);
-    pop.style.transform = `translate(${sx}px, ${sy}px) translate(-50%, -100%)`;
-    const d = BUILDINGS[b.type];
-    let btns;
-    switch (b.type) {
-      case 'forge': btns = `<button data-act="open" data-kind="forge" data-tab="tech" title="Tech tree">${ic('tech')}</button><button data-act="open" data-kind="forge" data-tab="craft" title="Forge weapons">${ic('anvil')}</button>`; break;
-      case 'market': btns = `<button data-act="open" data-kind="market" title="Trade">${ic('scales')}</button>`; break;
-      case 'barracks': btns = `<button data-act="open" data-kind="army" data-tab="army" title="Army">${ic('battle')}</button><button data-act="open" data-kind="army" data-tab="map" title="World">${ic('map')}</button>`; break;
-      case 'townhall': btns = `<button data-act="open" data-kind="townhall" title="Expeditions">${ic('compass')}</button>`; break;
-      default: btns = '';
-    }
-    btns += `<button data-act="select" data-bid="${b.id}" title="${b.level < d.maxLevel ? 'Upgrade' : 'Details'}">${ic(b.level < d.maxLevel ? 'up' : 'help')}</button>`;
-    setHTML(pop, `<div class="hp-title">${ic(d.icon)}${d.name}${d.maxLevel > 1 ? ` <i>${TIER_NAMES[b.level]}</i>` : ''}</div><div class="hp-btns">${btns}</div>`);
-    pop.classList.add('show');
-  }
+  // Hovering only highlights a building; its actions open on click.
+  function setHover(b) { Render.hover = b; }
+  function updateHoverPop() {}
 
   // ---------------------------------------------------------
   //  Side panel: selected building
   // ---------------------------------------------------------
-  function prodRate(b) {
+  function prodRate(b, level = b.level, workers = b.workers) {
     const d = BUILDINGS[b.type];
-    let rate = d.rate[b.level - 1] * b.workers * Sim.efficiency();
+    let rate = d.rate[level - 1] * workers;
     if (b.type === 'farm') rate *= (has('cropRotation') ? 1.3 : 1) * (has('husbandry') ? 1.2 : 1);
     if (['lumber', 'quarry', 'mine'].includes(b.type) && has('tools')) rate *= 1.25;
     if (b.type === 'mine' && has('deepMining')) rate *= 1.5;
     if (b.type === 'stables' && has('husbandry')) rate *= 1.5;
     return rate;
   }
+  const statLine = (icon, label, value) => `<div class="sline">${icon}<span>${label}</span><b>${value}</b></div>`;
+  const nextLine = (label, a, b) => `<div class="sline">${ic('arrowR', '', '#8fd16a')}<span>${label}</span><b>${a} → <em>${b}</em></b></div>`;
+
+  // What the next level changes, per building type
+  function nextLevelLines(b) {
+    const d = BUILDINGS[b.type], L = b.level, n = L + 1;
+    const out = [];
+    const arch = has('architecture') ? 1.25 : 1;
+    if (b.type === 'house') out.push(nextLine('Residents', Math.floor(d.capacity[L - 1] * arch), Math.floor(d.capacity[n - 1] * arch)));
+    if (d.workers) out.push(nextLine('Workers', d.workers[L - 1], d.workers[n - 1]));
+    if (d.produces) {
+      const key = d.produces === 'ore' ? b.ore : d.produces;
+      out.push(nextLine(RES[key].name + ' / day (full)', prodRate(b, L, d.workers[L - 1]).toFixed(1), prodRate(b, n, d.workers[n - 1]).toFixed(1)));
+    }
+    if (d.refinery) out.push(nextLine('Refining speed', '×' + REFINERY_SPEED[L - 1], '×' + REFINERY_SPEED[n - 1]));
+    if (b.type === 'forge') out.push(nextLine('Research & forging speed', '×' + d.speed[L - 1], '×' + d.speed[n - 1]));
+    if (b.type === 'market') out.push(nextLine('Trade margin', Math.round(d.spread[L - 1] * 100) + '%', Math.round(d.spread[n - 1] * 100) + '%'));
+    if (b.type === 'barracks') out.push(nextLine('Army size', d.capacity[L - 1], d.capacity[n - 1]));
+    if (b.type === 'townhall') {
+      out.push(nextLine('Expeditions at once', d.expSlots[L - 1], d.expSlots[n - 1]));
+      out.push(nextLine('Expedition haul', '+' + Math.round((d.expBonus[L - 1] - 1) * 100) + '%', '+' + Math.round((d.expBonus[n - 1] - 1) * 100) + '%'));
+    }
+    if (b.type === 'watchtower') out.push(nextLine('Firepower', 12 * L, 12 * n));
+    return out.join('');
+  }
+
+  // Labelled actions for the command-center buildings
+  function buildingActions(b) {
+    const btn = (icon, label, kind, tab) => `<button class="big wide" data-act="open" data-kind="${kind}" data-tab="${tab || ''}">${ic(icon)} ${label}</button>`;
+    switch (b.type) {
+      case 'forge': return btn('tech', 'Tech Tree', 'forge', 'tech') + btn('anvil', 'Forge Weapons', 'forge', 'craft') + btn('shield', 'Unit Guide', 'forge', 'guide');
+      case 'market': return btn('scales', 'Trade', 'market');
+      case 'barracks': return btn('battle', 'Army', 'army', 'army') + btn('wall', 'Defence', 'army', 'defense') + btn('map', 'World Map', 'army', 'map');
+      case 'townhall': return btn('compass', 'Expeditions', 'townhall');
+    }
+    return '';
+  }
+
   function renderSide() {
     const el = $('side');
     const b = ui.selected;
     if (!b || !G.buildings.includes(b)) { el.classList.remove('show'); ui.selected = null; return; }
     el.classList.add('show');
     const d = BUILDINGS[b.type];
-    let h = `<button class="close" data-act="deselect">${ic('close')}</button>
-      <h2>${ic(d.icon)} ${d.name} ${d.maxLevel > 1 ? `<span class="tier">${TIER_NAMES[b.level]}</span>` : ''}</h2>`;
+    let h = `<button class="close" data-act="deselect" title="Close">${ic('close')}</button>
+      <h2>${ic(d.icon)} ${d.name}</h2>
+      <div class="sub">${d.maxLevel > 1 ? `Level ${b.level} of ${d.maxLevel}` : ''}${d.maxLevel > 1 ? ' · ' : ''}${d.desc}</div>`;
     if (b.built < 1) {
-      h += `<div class="bar"><div style="width:${b.built * 100}%"></div></div>`;
+      h += `<div class="bar"><div style="width:${b.built * 100}%"></div></div><div class="sub">Under construction</div>`;
     } else {
-      const stats = [];
-      if (d.workers) stats.push(`<span title="Workers">${ic('worker')} ${b.workers}/${d.workers[b.level - 1]}</span>`);
+      h += '<div class="slines">';
+      if (d.workers) h += statLine(ic('worker'), 'Workers', `${b.workers} / ${d.workers[b.level - 1]}`);
       if (d.produces) {
         const key = d.produces === 'ore' ? b.ore : d.produces;
-        stats.push(`<span title="Per day">${resIc(key)} +${prodRate(b).toFixed(1)}</span>`);
+        h += statLine(resIc(key), RES[key].name + ' / day', '+' + prodRate(b).toFixed(1));
       }
-      if (b.type === 'house') stats.push(`<span title="Residents">${ic('pop')} ${Math.floor(d.capacity[b.level - 1] * (has('architecture') ? 1.25 : 1))}</span>`);
-      if (b.type === 'watchtower') stats.push(`<span title="Firepower">${ic('bow')} ${12 * b.level}</span>`);
-      if (b.type === 'forge') stats.push(`<span title="Speed">${ic('speed')} ×${d.speed[b.level - 1]}</span>`);
-      if (b.type === 'market') stats.push(`<span title="Trade margin">${ic('scales')} ${(d.spread[b.level - 1] * 100).toFixed(0)}%</span>`);
-      if (b.type === 'barracks') stats.push(`<span title="Army size">${ic('battle')} ${armyCapacity()}</span>`);
-      if (b.type === 'townhall') stats.push(`<span title="Expeditions">${ic('compass')} ${d.expSlots[b.level - 1]}</span>`);
-      h += `<div class="stats">${stats.join('')}</div>`;
-      if (b.type === 'mine') h += '<div class="opts">' + ORE_TYPES.map(o => `<button class="${b.ore === o ? 'on' : ''}" data-act="ore" data-ore="${o}" title="${RES[o].name}">${resIc(o)}</button>`).join('') + '</div>';
+      if (b.type === 'house') h += statLine(ic('pop'), 'Residents', Math.floor(d.capacity[b.level - 1] * (has('architecture') ? 1.25 : 1)));
+      if (b.type === 'watchtower') h += statLine(ic('bow'), 'Firepower', 12 * b.level);
+      if (b.type === 'forge') h += statLine(ic('speed'), 'Speed', '×' + d.speed[b.level - 1]);
+      if (b.type === 'market') h += statLine(ic('scales'), 'Trade margin', Math.round(d.spread[b.level - 1] * 100) + '%');
+      if (b.type === 'barracks') h += statLine(ic('battle'), 'Army size', `${totalSoldiers()} / ${armyCapacity()}`);
+      if (b.type === 'townhall') h += statLine(ic('compass'), 'Expeditions', `${G.expeditions.length} / ${d.expSlots[b.level - 1]}`);
+      h += '</div>';
+      h += buildingActions(b);
+      if (b.type === 'mine') h += '<div class="lbl">Ore to dig</div><div class="opts">' + ORE_TYPES.map(o => `<button class="${b.ore === o ? 'on' : ''}" data-act="ore" data-ore="${o}">${resIc(o)} ${RES[o].name.replace(' Ore', '')}</button>`).join('') + '</div>';
       if (d.refinery) {
         const r = RECIPES[d.recipe];
-        const full = Sim.refinerySpeed(b) / r.time;
-        const perDay = full * b.pct / 100;
-        h += `<div class="recipe">${costHTML(r.in, perDay)} ${ic('arrowR')} ${costHTML(r.out, perDay)}<small>/day</small></div>
-          <div class="slider"><input type="range" id="ref-pct" min="0" max="100" step="5" value="${b.pct}" aria-label="Refine percent">
+        const perDay = Sim.refinerySpeed(b) / r.time * b.pct / 100;
+        h += `<div class="lbl">Per day</div><div class="recipe">${costHTML(r.in, perDay)} ${ic('arrowR')} ${costHTML(r.out, perDay)}</div>
+          <div class="lbl">Refine amount</div>
+          <div class="slider"><input type="range" id="ref-pct" min="0" max="100" step="5" value="${b.pct}" aria-label="Refine amount">
           <b>${b.pct}%</b></div>
-          ${b.starved ? `<div class="warnline">${ic('warn')} ${costHTML(r.in)}</div>` : ''}`;
-      }
-      if (d.unique) {
-        const map = { forge: ['forge', 'tech', 'tech'], market: ['market', '', 'scales'], barracks: ['army', 'army', 'battle'], townhall: ['townhall', '', 'compass'] };
-        const [k, t, i] = map[b.type];
-        h += `<button class="big wide" data-act="open" data-kind="${k}" data-tab="${t}">${ic(i)}</button>`;
+          ${b.starved ? `<div class="warnline">${ic('warn')} Missing ${costHTML(r.in)}</div>` : ''}`;
       }
       if (b.upg !== undefined) {
-        h += `<div class="upbox">${ic('hammer')}<div class="bar"><div style="width:${b.upg * 100}%"></div></div></div>`;
+        h += `<div class="upbox"><div class="lbl">${ic('hammer')} Upgrading to level ${b.level + 1}</div><div class="bar"><div style="width:${b.upg * 100}%"></div></div></div>`;
       } else if (b.level < d.maxLevel) {
         const req = d.upgradeReq && d.upgradeReq[b.level];
         const locked = req && !has(req);
         const cost = d.upgrade[b.level];
-        h += `<div class="upbox"><span class="tier">${TIER_NAMES[b.level]} ${ic('arrowR')} ${TIER_NAMES[b.level + 1]}</span>
-          ${locked ? `<span class="lockline">${ic('lock')} ${techName(req)}</span>` : `<span>${costHTML(cost)}</span>`}
-          <button class="big" data-act="upgrade" title="Upgrade" ${locked || !canAfford(cost) ? 'disabled' : ''}>${ic('up')}</button></div>`;
-      }
+        h += `<div class="upbox"><div class="lbl">Next level · ${b.level + 1}</div>${nextLevelLines(b)}
+          <div class="costrow">${locked ? `<span class="lockline">${ic('lock')} Needs ${techName(req)}</span>` : costHTML(cost)}</div>
+          <button class="big wide" data-act="upgrade" ${locked || !canAfford(cost) ? 'disabled' : ''}>${ic('up')} Upgrade</button></div>`;
+      } else if (d.maxLevel > 1) h += `<div class="upbox"><div class="lbl">${ic('crown')} Max level</div></div>`;
       h += '<div class="rowbtns">';
-      if (d.workers) h += `<button data-act="pause" title="${b.paused ? 'Resume' : 'Pause'}">${ic(b.paused ? 'play' : 'pause')}</button>`;
-      if (!d.unique) h += `<button class="danger ${ui.armed === 'demolish' + b.id ? 'armed' : ''}" data-act="demolish" title="${ui.armed === 'demolish' + b.id ? 'Click again to demolish' : 'Demolish'}">${ic('trash')}${ui.armed === 'demolish' + b.id ? ' ?' : ''}</button>`;
+      if (d.workers) h += `<button data-act="pause">${ic(b.paused ? 'play' : 'pause')} ${b.paused ? 'Resume' : 'Pause'}</button>`;
+      if (!d.unique) h += `<button class="danger ${ui.armed === 'demolish' + b.id ? 'armed' : ''}" data-act="demolish">${ic('trash')} ${ui.armed === 'demolish' + b.id ? 'Confirm' : 'Demolish'}</button>`;
       h += '</div>';
     }
     // keep the slider while dragging it
@@ -261,7 +268,7 @@ const UI = (() => {
     switch (ui.modal.kind) {
       case 'forge': title = ic('anvil') + ' Forge'; html = forgeHTML(); break;
       case 'market': title = ic('scales') + ' Market'; html = marketHTML(); break;
-      case 'army': title = ic('battle') + ' War'; html = armyHTML(); break;
+      case 'army': title = ic('battle') + ' Barracks'; html = armyHTML(); break;
       case 'townhall': title = ic('compass') + ' Expeditions'; html = expHTML(); break;
       case 'help': title = ic('help') + ' Help'; html = helpHTML(); break;
     }
@@ -278,7 +285,7 @@ const UI = (() => {
   // ---------- Forge ----------
   function forgeHTML() {
     const f = findBuilding('forge');
-    let h = tabs([['tech', ic('tech'), 'Tech tree'], ['craft', ic('anvil'), 'Forge weapons'], ['guide', ic('shield'), 'Unit matchups']], ui.forgeTab, 'forgetab');
+    let h = tabs([['tech', ic('tech') + ' Tech Tree'], ['craft', ic('anvil') + ' Forge Weapons'], ['guide', ic('shield') + ' Unit Guide']], ui.forgeTab, 'forgetab');
     if (ui.forgeTab === 'tech') h += techTreeHTML(f);
     else if (ui.forgeTab === 'craft') h += craftHTML(f);
     else h += guideHTML();
@@ -387,7 +394,7 @@ const UI = (() => {
         <div class="wc-cost">${costHTML(d.cost)}</div>
         <div class="wc-btns">${[1, 5, 10, 25].map(n => `<button data-act="craft" data-w="${w}" data-n="${n}" ${canAfford(d.cost) ? '' : 'disabled'}>+${n}</button>`).join('')}</div></div>`;
     }
-    h += `</div><div class="queue scroll"><h4>${ic('flame')}</h4>`;
+    h += `</div><div class="queue scroll"><h4>${ic('flame')} Forge queue</h4>`;
     if (!G.forgeQueue.length) h += `<div class="empty">${ic('anvil', 'huge')}</div>`;
     G.forgeQueue.forEach((q, i) => {
       const c = CLASSES[WEAPONS[q.w].cls];
@@ -395,8 +402,8 @@ const UI = (() => {
     });
     const arm = Object.entries(G.weapons).filter(([, n]) => n > 0);
     if (arm.length) {
-      h += `<h4>${ic('shield')}</h4>` + arm.map(([w, n]) => `<div class="qrow">${ic(CLASSES[WEAPONS[w].cls].icon, '', CLASSES[WEAPONS[w].cls].color)}<b>${n}</b><span class="qn">${WEAPONS[w].name}</span></div>`).join('');
-      h += `<button class="big wide" data-act="open" data-kind="army" data-tab="army">${ic('battle')} ${ic('arrowR')}</button>`;
+      h += `<h4>${ic('shield')} Armoury</h4>` + arm.map(([w, n]) => `<div class="qrow">${ic(CLASSES[WEAPONS[w].cls].icon, '', CLASSES[WEAPONS[w].cls].color)}<b>${n}</b><span class="qn">${WEAPONS[w].name}</span></div>`).join('');
+      h += `<button class="big wide" data-act="open" data-kind="army" data-tab="army">${ic('battle')} Train soldiers</button>`;
     }
     h += '</div></div>';
     return h;
@@ -421,7 +428,7 @@ const UI = (() => {
     h += `<div class="mktbar"><label class="search">${ic('search')}<input id="mkt-search" type="search" placeholder="Search" value="${tip(ui.mktQuery)}" autocomplete="off"></label>
       <div class="qtys">${[1, 10, 50, 100].map(n => `<button class="${ui.tradeQty === n ? 'on' : ''}" data-act="qty" data-q="${n}">${n}</button>`).join('')}</div></div></div>`;
     const kd = kingdomDef(ui.partner);
-    h += '<div class="scroll mtable"><table><tr><th></th><th>' + ic('bag') + '</th><th colspan="2">Sell</th><th colspan="2">Buy</th></tr>';
+    h += '<div class="scroll mtable"><table><tr><th>Resource</th><th>Have</th><th colspan="2">Sell</th><th colspan="2">Buy</th></tr>';
     let shown = 0;
     for (const r of RES_ORDER) {
       if (q && !RES[r].name.toLowerCase().includes(q) && !r.toLowerCase().includes(q)) continue;
@@ -439,7 +446,7 @@ const UI = (() => {
 
   // ---------- Army / defence / world ----------
   function armyHTML() {
-    let h = tabs([['army', ic('battle'), 'Army'], ['defense', ic('wall'), 'Defence'], ['map', ic('map'), 'World']], ui.armyTab, 'armytab');
+    let h = tabs([['army', ic('battle') + ' Army'], ['defense', ic('wall') + ' Defence'], ['map', ic('map') + ' World Map']], ui.armyTab, 'armytab');
     if (ui.armyTab === 'army') h += armyTabHTML();
     else if (ui.armyTab === 'defense') h += defenseHTML();
     else h += worldHTML();
@@ -452,14 +459,13 @@ const UI = (() => {
   function armyTabHTML() {
     const b = armyBonuses();
     let h = `<div class="armyhead"><span title="Soldiers / capacity">${ic('battle')} ${totalSoldiers()}/${armyCapacity()}</span>
-      <span title="Pay per soldier per day">${ic('coin', '', '#f1c75b')} ${WAGE_SOLDIER}/d</span>
       <span title="Training cost">${ic('up')} ${RECRUIT_COST}</span>
       <span title="Available citizens">${ic('pop')} ${availableWorkers()}</span>
       <span title="Army power">${ic('speed')} ${Combat.power(G.army)}</span>
       ${b.atk > 1 ? `<span title="Attack bonus">${ic('sword')} ×${b.atk.toFixed(2)}</span>` : ''}${b.armor ? `<span title="Armour bonus">${ic('shield')} +${b.armor}</span>` : ''}</div>`;
     h += `<div class="cols2"><div class="scroll"><h4>${ic('shield')} Armoury</h4>`;
     const arm = Object.entries(G.weapons).filter(([, n]) => n > 0);
-    if (!arm.length) h += `<button class="big" data-act="open" data-kind="forge" data-tab="craft">${ic('anvil')} ${ic('arrowR')}</button>`;
+    if (!arm.length) h += `<button class="big" data-act="open" data-kind="forge" data-tab="craft">${ic('anvil')} Forge weapons</button>`;
     for (const [w, n] of arm) h += unitRow(w, n, [1, 10].map(k => `<button data-act="recruit" data-w="${w}" data-n="${k}" title="Train">+${k}</button>`).join('') + `<button data-act="recruit" data-w="${w}" data-n="9999" title="Train all">${ic('plus')}</button>`);
     h += `</div><div class="scroll"><h4>${ic('battle')} Army</h4>`;
     const units = Object.entries(G.army).filter(([, n]) => n > 0);
@@ -474,10 +480,10 @@ const UI = (() => {
     const def = Sim.defenders();
     const side = Sim.playerSide(def, true);
     const wall = has('stoneWalls') ? 'Stone walls −25%' : has('palisade') ? 'Palisade −10%' : 'Fence';
-    let h = `<div class="defrow"><span title="${wall}">${ic('wall')} ${has('stoneWalls') ? '−25%' : has('palisade') ? '−10%' : '0%'}</span>
-      <span title="Watchtower firepower">${ic('tower')} ${side.towers}</span>
-      <span title="Militia (idle villagers)">${ic('militia')} ${Sim.militiaCount()}</span></div>
-      <div class="defrow">${unitsHTML(def)}</div>`;
+    let h = `<div class="defrow"><span>${ic('wall')} ${wall}</span>
+      <span>${ic('tower')} Towers ${side.towers}</span>
+      <span>${ic('militia')} Militia ${Sim.militiaCount()}</span></div>
+      <div class="defrow">Defenders ${unitsHTML(def)}</div>`;
     const inc = G.raid.incoming;
     if (inc) {
       const p = Combat.forecast(Sim.kingdomSide(inc.from, inc.units, false), side);
@@ -524,12 +530,12 @@ const UI = (() => {
     const gar = Sim.roundUnits(ks.garrison);
     let h = `<h3><span class="dotc" style="background:${kd.color}"></span>${kd.name}</h3>`;
     if (ks.conquered) return h + `<p class="okc">${ic('crown', 'big')}</p>`;
-    h += `<div class="defrow"><span title="March days">${ic('clock')} ${Sim.marchDays(id).toFixed(1)}d</span><span title="Garrison power">${ic('speed')} ${Combat.power(gar)}</span></div>
-      <div class="defrow">${unitsHTML(gar)}</div>
-      <div class="defrow" title="Spoils">${ic('bag')} ${gainHTML(kd.loot)} <span title="More land">${ic('wall')} +${kd.land}</span></div>`;
+    h += `<div class="defrow"><span>${ic('clock')} March ${Sim.marchDays(id).toFixed(1)} days</span><span>${ic('speed')} Power ${Combat.power(gar)}</span></div>
+      <div class="defrow">Garrison ${unitsHTML(gar)}</div>
+      <div class="defrow">Spoils ${gainHTML(kd.loot)} <span>${ic('wall')} +${kd.land} land</span></div>`;
     const units = Object.entries(G.army).filter(([, n]) => n > 0);
     if (!units.length) return h + `<p class="muted">${ic('battle')} 0</p>`;
-    h += '<div class="sendbox">';
+    h += '<div class="sendbox"><h4>Send soldiers</h4>';
     for (const [w, n] of units) {
       const sel = Math.min(ui.attackSel[w] ?? n, n);
       ui.attackSel[w] = sel;
@@ -542,7 +548,7 @@ const UI = (() => {
     for (const [w] of units) if (ui.attackSel[w] > 0) send[w] = ui.attackSel[w];
     if (unitCount(send)) {
       const p = Combat.forecast(Sim.playerSide(send, false), Sim.kingdomSide(id, gar, true));
-      h += `<div class="defrow"><span title="Chance of victory">${ic('trophy')} ${oddsHTML(p)}</span></div>
+      h += `<div class="defrow"><span>${ic('trophy')} Chance to win ${oddsHTML(p)}</span></div>
         <button class="big wide" data-act="attack" data-id="${id}">${ic('flag')} March</button>`;
     }
     return h + '</div>';
@@ -555,23 +561,23 @@ const UI = (() => {
     let h = '<div class="exps">';
     for (const t in EXPEDITIONS) {
       const e = EXPEDITIONS[t];
-      h += `<button class="expcard ${ui.expType === t ? 'on' : ''}" data-act="exptype" data-t="${t}" title="${e.name}">
-        ${t === 'ore' ? `<span class="ores">${ORE_TYPES.map(o => resIc(o)).join('')}</span>` : resIc(t)}<small>${ic('clock')} ${e.days}d</small></button>`;
+      h += `<button class="expcard ${ui.expType === t ? 'on' : ''}" data-act="exptype" data-t="${t}">
+        <b>${e.name}</b>${t === 'ore' ? `<span class="ores">${ORE_TYPES.map(o => resIc(o)).join('')}</span>` : resIc(t)}<small>${ic('clock')} ${e.days}d</small></button>`;
     }
     h += '</div>';
     const story = ui.expType === 'wood' && ui.expPeople >= 50 && G.stats.woodGathered < 100;
     const gain = {};
     for (const [k, v] of Object.entries(EXPEDITIONS[ui.expType].yield)) gain[k] = Math.max(story ? 100 : 0, Math.round(v * ui.expPeople * Sim.expBonus()));
-    h += `<div class="selrow big">${ic('pop')}<span>
+    h += `<div class="selrow big">${ic('pop')} Villagers<span>
         <button data-act="exppeople" data-d="-25">−25</button><button data-act="exppeople" data-d="-5">−5</button>
         <b>${ui.expPeople}</b>
         <button data-act="exppeople" data-d="5">+5</button><button data-act="exppeople" data-d="25">+25</button></span>
         <span class="gain">${ic('arrowR')} ${Object.entries(gain).map(([k, n]) => `${resIc(k)}~${n}`).join(' ')}</span></div>
       ${ui.expPeople > idleCitizens() ? `<div class="warnline">${ic('warn')} ${ic('worker')} −${ui.expPeople - idleCitizens()}</div>` : ''}
-      <button class="big wide" data-act="sendexp" ${avail >= ui.expPeople && G.expeditions.length < Sim.expSlots() ? '' : 'disabled'}>${ic('compass')} Send</button>
+      <button class="big wide" data-act="sendexp" ${avail >= ui.expPeople && G.expeditions.length < Sim.expSlots() ? '' : 'disabled'}>${ic('compass')} Send expedition</button>
       <div class="explist">`;
     for (const e of G.expeditions) h += `<div class="qrow">${ic(EXPEDITIONS[e.type].icon)}<b>${e.people}</b><div class="bar"><div style="width:${(1 - e.t / e.total) * 100}%"></div></div><small>${e.t.toFixed(1)}d</small></div>`;
-    h += `<div class="muted small">${ic('compass')} ${G.expeditions.length}/${Sim.expSlots()}</div></div>`;
+    h += `<div class="muted small">Out now: ${G.expeditions.length} / ${Sim.expSlots()}</div></div>`;
     return h;
   }
 
@@ -580,7 +586,7 @@ const UI = (() => {
     return `<div class="scroll guide">
       ${row('map', 'Drag or WASD to move. Scroll to zoom.')}
       ${row('house', 'Pick a building below, click inside the walls. Right-click to stop.')}
-      ${row('coin', 'No taxes. Sell goods at the Market to pay wages.')}
+      ${row('coin', 'Coins come from selling at the Market and from battle loot.')}
       ${row('furnace', 'Each refinery makes one material. Set how much it refines with its slider.')}
       ${row('battle', 'Mix unit types. Every class has a counter.')}
       ${row('pause', 'Space pauses. 1 · 2 · 3 set speed.')}

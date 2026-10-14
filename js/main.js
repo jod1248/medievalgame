@@ -43,7 +43,8 @@ const Main = (() => {
       panKeys(dt);
       uiTimer += dt; modalTimer += dt; autosave += dt;
       if (uiTimer > 0.25) { uiTimer = 0; UI.renderTop(); UI.renderAlert(); }
-      if (modalTimer > 0.5) { modalTimer = 0; UI.renderBottom(); UI.renderSide(); UI.renderTutorial(); if (!mouse.down) UI.renderModal(); }
+      // never redraw panels mid-click, or the button under the cursor would be replaced
+      if (modalTimer > 0.5 && !mouse.pressed) { modalTimer = 0; UI.renderBottom(); UI.renderSide(); UI.renderTutorial(); UI.renderModal(); }
       if (autosave > 30) { autosave = 0; saveGame(); }
       UI.updateHoverPop(dt, mouse.overPop);
     }
@@ -66,6 +67,9 @@ const Main = (() => {
   }
 
   function initInput() {
+    window.addEventListener('pointerdown', () => { mouse.pressed = true; }, true);
+    window.addEventListener('pointerup', () => { mouse.pressed = false; }, true);
+    window.addEventListener('blur', () => { mouse.pressed = false; });
     canvas.addEventListener('mousedown', e => {
       if (e.button === 2) { if (UI.ui.placing) UI.stopPlacing(); return; }
       const [x, y] = canvasPos(e);
