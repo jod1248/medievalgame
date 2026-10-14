@@ -7,7 +7,7 @@ const T_GRASS = 0, T_FOREST = 1, T_WATER = 2, T_ROAD = 3, T_PLAZA = 4, T_SAND = 
 const TOWN_CENTER = [20, 22];
 const START_TERRITORY = 11, MAX_TERRITORY = 21;
 const SAVE_KEY = 'emberfall_save_v1';
-const SAVE_VERSION = 2;   // saves from older versions can't be loaded
+const SAVE_VERSION = 3;   // saves from older versions can't be loaded
 
 let G = null;   // the one and only game state
 
@@ -80,12 +80,13 @@ function newGame() {
     pop: 200, popAcc: 0,
     map: null, territory: START_TERRITORY,
     buildings: [], nextId: 1,
-    techs: {}, research: null,
+    techs: {}, research: null, researchQueue: [],
+    training: [],
     forgeQueue: [],
     weapons: {}, army: {},
     expeditions: [], campaigns: [],
     kingdoms: KINGDOMS.map(k => ({ id: k.id, conquered: false, garrison: { ...k.garrison }, known: true })),
-    market: {},              // partnerId -> res -> demand factor
+    market: {},              // resource -> demand factor
     raid: { next: 24, incoming: null, count: 0 },
     tut: 0, started: false, won: false, lost: false,
     stats: { woodGathered: 0, housesBuilt: 0, weaponsForged: 0, recruited: 0, trades: 0, raidsRepelled: 0, conquered: 0, researched: 0 },
@@ -184,7 +185,8 @@ function soldiersAway() {
   for (const c of G.campaigns) for (const k in c.units) n += c.units[k];
   return n;
 }
-function totalSoldiers() { return soldiersAtHome() + soldiersAway(); }
+function soldiersTraining() { return (G.training || []).reduce((s, q) => s + q.n, 0); }
+function totalSoldiers() { return soldiersAtHome() + soldiersAway() + soldiersTraining(); }
 function peopleOnExpedition() { return G.expeditions.reduce((s, e) => s + e.people, 0); }
 function civilians() { return Math.max(0, G.pop - totalSoldiers()); }
 function availableWorkers() { return Math.max(0, civilians() - peopleOnExpedition()); }

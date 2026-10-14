@@ -302,3 +302,28 @@ svg.links path.done { stroke: #8fd16a; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- 3D world map ---------- */
+.world { grid-template-columns: 1.5fr 1fr; }
+.wm-wrap { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.wm-slot { position: relative; height: min(520px, 60vh); border: 1px solid var(--edge); border-radius: 12px; overflow: hidden; background: #9fc3d6; }
+.wm-root, .wm-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.wm-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.wm-label { position: absolute; left: 0; top: 0; white-space: nowrap; font: 700 13px var(--font-display); color: #fff; padding: 1px 8px; border-radius: 999px;
+  background: rgba(20, 14, 8, 0.65); border: 1px solid rgba(255, 255, 255, 0.15); display: flex; align-items: center; transition: background .15s; }
+.wm-label.home { background: rgba(59, 111, 196, 0.85); }
+.wm-label.won { border-color: var(--gold); }
+.wm-label.sel { background: rgba(160, 120, 30, 0.95); }
+.wm-hint { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.kdetail .sub { color: var(--muted); font-size: 13.5px; margin: -4px 0 8px; }
+
+/* research queue */
+.rqueue { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -2px 0 8px; color: var(--muted); font-size: 13px; }
+.qchip { display: inline-flex; align-items: center; gap: 4px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--edge); border-radius: 999px; padding: 1px 4px 1px 8px; color: var(--text); }
+.qchip button { padding: 0 4px; background: transparent; border-color: transparent; }
+.queued { color: var(--gold); display: inline-flex; align-items: center; gap: 4px; }
+.tnode.queued { border-color: #8a7ad0; background: #2a2440; }
+
+/* barracks */
+.wname { flex: 1; font-weight: 700; }
+.feeline { color: var(--muted); font-size: 12.5px; margin: -2px 0 6px 38px; display: flex; align-items: center; gap: 4px; }

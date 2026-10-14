@@ -5,7 +5,6 @@
 
 const DAY_SECONDS = 48;          // real seconds per in-game day at 1x speed
 const FOOD_PER_PERSON = 0.15;    // food eaten per person per day
-const RECRUIT_COST = 5;          // coins to train one soldier
 
 const RES = {
   food:      { name: 'Food',           icon: 'food', color: '#e0b25a', price: 1 },
@@ -111,7 +110,7 @@ const BUILDINGS = {
   barracks: {
     name: 'Barracks', icon: 'barracks', size: 2, unique: true, maxLevel: 3,
     upgrade: [null, { planks: 40, stone: 40, coins: 80 }, { planks: 60, stone: 100, iron: 20, coins: 200 }],
-    capacity: [60, 150, 350],
+    capacity: [60, 150, 350], trainSpeed: [1, 1.5, 2.2],
     desc: 'Train and command soldiers.',
   },
 };
@@ -307,38 +306,66 @@ const TECHS = {
 };
 
 // ------------------------------------------------------------
-//  Neighbouring kingdoms
+//  Soldier training: harder weapons take longer and cost more
+// ------------------------------------------------------------
+const MAT_TIER = { bronze: 1, brass: 1, iron: 2, steel: 3, damascus: 4 };
+function weaponTier(w) { return Math.max(0, ...Object.keys(WEAPONS[w].cost).map(k => MAT_TIER[k] || 0)); }
+function trainDays(w) {
+  const c = WEAPONS[w].cls;
+  return 0.1 + weaponTier(w) * 0.08 + (c === 'cavalry' ? 0.15 : 0) + (c === 'ranged' ? 0.05 : 0);
+}
+function trainFee(w) { return 4 + weaponTier(w) * 6 + (WEAPONS[w].cls === 'cavalry' ? 10 : 0); }
+
+// ------------------------------------------------------------
+//  Cities of the realm (x, y = position on the world map; Emberfall is at 0,0).
+//  Listed roughly from weakest to strongest.
 // ------------------------------------------------------------
 const KINGDOMS = [
-  { id: 'oakhold', name: 'Oakhold', ruler: 'Baron Aldric the Stout', color: '#7fa650', dist: 2, angle: 200,
+  { id: 'oakhold', name: 'Oakhold', ruler: 'Baron Aldric', color: '#7fa650', x: -3, y: 2.5,
     garrison: { woodSpear: 25, woodSword: 20, sling: 15, woodJavelin: 10 }, growth: 0.012,
-    loot: { coins: 300, wood: 200, food: 300 }, land: 2,
-    trade: { wood: 0.75, food: 0.8, planks: 0.85, iron: 1.2, steel: 1.25 },
-    desc: 'Timber barony' },
-  { id: 'coppermarch', name: 'Coppermarch', ruler: 'Lady Verena', color: '#d08a4a', dist: 3, angle: 140,
+    loot: { coins: 300, wood: 200, food: 300 }, land: 1, desc: 'Timber village' },
+  { id: 'millbrook', name: 'Millbrook', ruler: 'Reeve Tamsin', color: '#c9a14a', x: 3.5, y: 2.8,
+    garrison: { woodSword: 22, shortBow: 15, woodSpear: 18 }, growth: 0.012,
+    loot: { coins: 280, food: 450, planks: 60 }, land: 1, desc: 'Farming village' },
+  { id: 'fernwick', name: 'Fernwick', ruler: 'Old Gareth', color: '#4f8f5a', x: -3.8, y: -3,
+    garrison: { woodSpear: 30, woodJavelin: 20, sling: 22 }, growth: 0.013,
+    loot: { coins: 320, wood: 300, charcoal: 50 }, land: 1, desc: 'Forest hamlet' },
+  { id: 'coppermarch', name: 'Coppermarch', ruler: 'Lady Verena', color: '#d08a4a', x: -6.5, y: 5,
     garrison: { bronzeSpear: 35, bronzeSword: 25, shortBow: 25, bronzeJavelin: 15 }, growth: 0.015,
-    loot: { coins: 600, copperOre: 120, zincOre: 80, brass: 20 }, land: 2,
-    trade: { copperOre: 0.7, zincOre: 0.7, brass: 0.8, food: 1.2, wood: 1.15 },
-    desc: 'Hill mines' },
-  { id: 'stonebrook', name: 'Stonebrook', ruler: 'Thane Morwick', color: '#9aa3ad', dist: 3, angle: 255,
+    loot: { coins: 600, copperOre: 120, zincOre: 80, brass: 20 }, land: 1, desc: 'Hill mines' },
+  { id: 'stonebrook', name: 'Stonebrook', ruler: 'Thane Morwick', color: '#9aa3ad', x: 6, y: -3.5,
     garrison: { bronzeSpear: 30, bronzeAxe: 25, bronzeMace: 20, sling: 30 }, growth: 0.015,
-    loot: { coins: 600, stone: 300, tinOre: 100, bronze: 25 }, land: 2,
-    trade: { stone: 0.7, tinOre: 0.7, bronze: 0.8, planks: 1.2, horses: 1.2 },
-    desc: 'Quarry town' },
-  { id: 'ironvale', name: 'Ironvale', ruler: 'Duke Harrow', color: '#5e6b7a', dist: 4, angle: 320,
+    loot: { coins: 600, stone: 300, tinOre: 100, bronze: 25 }, land: 1, desc: 'Quarry town' },
+  { id: 'ravenford', name: 'Ravenford', ruler: 'Sir Edric', color: '#7a6ac8', x: 1.5, y: -6.5,
+    garrison: { bronzeSword: 30, bronzeAxe: 20, shortBow: 30, bronzeSpear: 25 }, growth: 0.016,
+    loot: { coins: 700, bronze: 30, iron: 20 }, land: 1, desc: 'River fort' },
+  { id: 'saltmere', name: 'Saltmere', ruler: 'Harbourmaster Ysolde', color: '#3f8fa8', x: 7.5, y: 5,
+    garrison: { bronzeSpear: 40, compositeBow: 30, bronzeJavelin: 25 }, growth: 0.016,
+    loot: { coins: 800, food: 500, brass: 25 }, land: 1, desc: 'Port town' },
+  { id: 'ironvale', name: 'Ironvale', ruler: 'Duke Harrow', color: '#5e6b7a', x: -8, y: -6,
     garrison: { ironSword: 40, ironSpear: 40, longBow: 30, ironAxe: 20, ironJavelin: 15 }, growth: 0.018,
-    loot: { coins: 1000, ironOre: 200, iron: 60, charcoal: 100 }, land: 2,
-    trade: { ironOre: 0.7, iron: 0.75, charcoal: 0.75, food: 1.25, brass: 1.2 },
-    desc: 'Northern forges' },
-  { id: 'ravenshire', name: 'Ravenshire', ruler: 'Countess Isolde', color: '#3b3f58', dist: 5, angle: 30,
+    loot: { coins: 1000, ironOre: 200, iron: 60, charcoal: 100 }, land: 1, desc: 'Northern forges' },
+  { id: 'greywatch', name: 'Greywatch', ruler: 'Marshal Brann', color: '#7a8590', x: 9, y: -7,
+    garrison: { ironSpear: 50, crossbow: 35, ironMace: 25, ironSword: 25 }, growth: 0.018,
+    loot: { coins: 1100, iron: 80, stone: 300 }, land: 1, desc: 'Border fortress' },
+  { id: 'thornwall', name: 'Thornwall', ruler: 'Lord Cassian', color: '#8a5a3a', x: -10.5, y: 1,
+    garrison: { ironAxe: 40, ironJavelin: 30, longBow: 40, ironSpear: 30 }, growth: 0.019,
+    loot: { coins: 1100, wood: 500, iron: 60 }, land: 1, desc: 'Walled timber city' },
+  { id: 'ravenshire', name: 'Ravenshire', ruler: 'Countess Isolde', color: '#3b3f58', x: 10.5, y: 1,
     garrison: { ironLance: 30, ironSpear: 40, crossbow: 40, steelSword: 25, ironMace: 20 }, growth: 0.02,
-    loot: { coins: 1600, horses: 25, steel: 40, iron: 80 }, land: 2,
-    trade: { horses: 0.65, food: 0.9, steel: 0.9, stone: 1.2, planks: 1.15 },
-    desc: 'Horse lords' },
-  { id: 'dragonspire', name: 'Dragonspire', ruler: 'King Oswin the Iron Crown', color: '#a33b3b', dist: 6, angle: 85,
+    loot: { coins: 1600, horses: 25, steel: 40, iron: 80 }, land: 1, desc: 'Horse lords' },
+  { id: 'blackmoor', name: 'Blackmoor', ruler: 'The Grey Abbot', color: '#2d2d33', x: -4.5, y: -10.5,
+    garrison: { steelAxe: 40, morningStar: 30, crossbow: 45, ironLance: 25, steelPike: 30 }, growth: 0.021,
+    loot: { coins: 2000, steel: 60, charcoal: 200 }, land: 1, desc: 'Fen citadel' },
+  { id: 'highcrest', name: 'Highcrest', ruler: 'Queen Maelis', color: '#d6d6e6', x: 5, y: 10.5,
+    garrison: { steelSword: 50, knightLance: 25, arbalest: 40, halberd: 25 }, growth: 0.021,
+    loot: { coins: 2400, steel: 80, brass: 40 }, land: 1, desc: 'Mountain city' },
+  { id: 'dragonspire', name: 'Dragonspire', ruler: 'King Oswin', color: '#a33b3b', x: -11, y: 10,
     garrison: { steelSword: 60, steelPike: 60, knightLance: 35, arbalest: 50, steelAxe: 30, morningStar: 20 }, growth: 0.022,
-    loot: { coins: 3000, steel: 100, damascus: 20 }, land: 3,
-    trade: { steel: 0.75, damascus: 0.7, iron: 0.85, food: 1.3, wood: 1.3 },
-    desc: 'The great kingdom' },
+    loot: { coins: 3000, steel: 100, damascus: 20 }, land: 2, desc: 'The great kingdom' },
 ];
-
+// march days and the compass direction an army leaves town in
+for (const k of KINGDOMS) {
+  k.dist = Math.max(1.5, Math.round(Math.hypot(k.x, k.y) / 2.2 * 10) / 10);
+  k.angle = Math.atan2(k.y, k.x) * 180 / Math.PI;
+}

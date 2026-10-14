@@ -77,6 +77,9 @@ const ICONS = {
   lock: '<rect x="4.5" y="10.5" width="15" height="11" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" fill="none" stroke="currentColor" stroke-width="2.2"/>',
   arrowR: '<path d="M4 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>',
   dot: '<circle cx="12" cy="12" r="5"/>',
+  music: '<path d="M9 18V5.5l11-2.5v13" fill="none" stroke="currentColor" stroke-width="2.2"/><ellipse cx="6.3" cy="18" rx="3.2" ry="2.6"/><ellipse cx="17.3" cy="16" rx="3.2" ry="2.6"/>',
+  musicOff: '<path d="M9 18V5.5l11-2.5v13" fill="none" stroke="currentColor" stroke-width="2.2" opacity=".45"/><ellipse cx="6.3" cy="18" rx="3.2" ry="2.6" opacity=".45"/><ellipse cx="17.3" cy="16" rx="3.2" ry="2.6" opacity=".45"/><path d="M3 3l18 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
+  queue: '<path d="M4 6h12M4 12h12M4 18h8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M17 15l4 3-4 3z"/>',
 };
 
 function ic(name, cls = '', color) {

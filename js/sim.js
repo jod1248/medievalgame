@@ -16,6 +16,7 @@ const Sim = (() => {
     population(dt);
     research(dt);
     forge(dt);
+    training(dt);
     expeditions(dt);
     campaigns(dt);
     raids(dt);
@@ -173,6 +174,8 @@ const Sim = (() => {
       G.stats.researched++;
       log(techName(G.research.id), 'good', 'tech');
       G.research = null;
+      // start the next queued research (already paid for)
+      if (G.researchQueue && G.researchQueue.length) G.research = { id: G.researchQueue.shift(), prog: 0 };
     }
   }
 
@@ -252,14 +255,35 @@ const Sim = (() => {
     return u;
   }
 
+  // Recruits wait in the training queue; each pays a one-time fee up front
   function recruit(w, n) {
-    n = Math.min(n, G.weapons[w] || 0, availableWorkers(), armyCapacity() - totalSoldiers(), Math.floor(G.coins / RECRUIT_COST));
+    const fee = trainFee(w);
+    n = Math.min(n, G.weapons[w] || 0, availableWorkers(), armyCapacity() - totalSoldiers(), Math.floor(G.coins / fee));
     if (n <= 0) return 0;
     G.weapons[w] -= n; if (!G.weapons[w]) delete G.weapons[w];
-    G.army[w] = (G.army[w] || 0) + n;
-    G.coins -= n * RECRUIT_COST;
-    G.stats.recruited += n;
+    G.coins -= n * fee;
+    const last = G.training[G.training.length - 1];
+    if (last && last.w === w) last.n += n; else G.training.push({ w, n, prog: 0, fee });
     return n;
+  }
+  function cancelTraining(i) {
+    const q = G.training[i];
+    if (!q) return;
+    G.weapons[q.w] = (G.weapons[q.w] || 0) + q.n;
+    G.coins += q.n * (q.fee || trainFee(q.w));
+    G.training.splice(i, 1);
+  }
+  function training(dt) {
+    const q = G.training[0];
+    if (!q) return;
+    const bk = findBuilding('barracks');
+    q.prog += dt * BUILDINGS.barracks.trainSpeed[bk.level - 1] / trainDays(q.w);
+    while (q.prog >= 1 && q.n > 0) {
+      q.prog -= 1; q.n--;
+      G.army[q.w] = (G.army[q.w] || 0) + 1;
+      G.stats.recruited++;
+    }
+    if (q.n <= 0) { G.training.shift(); log(WEAPONS[q.w].unit, 'good', 'battle'); }
   }
   function disband(w, n) {
     n = Math.min(n, G.army[w] || 0);
@@ -319,11 +343,10 @@ const Sim = (() => {
   function cleanUnits(u) { const o = {}; for (const k in u) if (u[k] > 0 && k !== 'militia') o[k] = u[k]; return o; }
 
   function raidSource() {
-    const open = G.kingdoms.filter(k => !k.conquered).map(k => KINGDOMS.findIndex(d => d.id === k.id)).sort((a, b) => a - b);
+    const open = KINGDOMS.filter(k => !kingdomState(k.id).conquered).sort((a, b) => a.dist - b.dist);
     if (!open.length) return null;
-    // the first raid always comes from the weakest neighbour
-    const pick = G.raid.count === 0 ? open[0] : open[Math.floor(Math.random() * Math.min(2, open.length))];
-    return KINGDOMS[pick].id;
+    // the first raid always comes from the closest neighbour, later ones from the three closest
+    return (G.raid.count === 0 ? open[0] : open[Math.floor(Math.random() * Math.min(3, open.length))]).id;
   }
 
   function raids(dt) {
@@ -387,46 +410,37 @@ const Sim = (() => {
   }
 
   // ---------------- Market ----------------
-  function partners() {
-    return KINGDOMS.map(k => ({ def: k, state: kingdomState(k.id) }));
-  }
-  function demand(pid, r) {
-    G.market[pid] = G.market[pid] || {};
-    return G.market[pid][r] || 1;
-  }
-  function price(pid, r, buying) {
-    const kd = kingdomDef(pid), ks = kingdomState(pid);
+  // One market for everything; each trade nudges that resource's price
+  function demand(r) { return G.market[r] || 1; }
+  function price(r, buying) {
     const m = findBuilding('market');
     let spread = BUILDINGS.market.spread[m.level - 1];
-    if (ks.conquered) spread *= 0.6;
     if (has('guilds')) spread *= 0.6;
-    const base = RES[r].price * (kd.trade[r] || 1) * demand(pid, r);
+    const base = RES[r].price * demand(r);
     return buying ? base * (1 + spread) : base * (1 - spread) * (has('banking') ? 1.15 : 1);
   }
-  function trade(pid, r, qty, buying) {
+  function trade(r, qty, buying) {
     qty = Math.floor(qty);
     if (qty <= 0) return false;
-    // price walks with each unit traded
     let total = 0;
-    G.market[pid] = G.market[pid] || {};
-    const d0 = demand(pid, r);
+    const d0 = demand(r);
     for (let i = 0; i < qty; i++) {
-      const p = price(pid, r, buying);
+      const p = price(r, buying);
       if (buying && G.coins < total + p) { qty = i; break; }
       if (!buying && G.res[r] < i + 1) { qty = i; break; }
       total += p;
-      G.market[pid][r] = Math.max(0.4, Math.min(3, demand(pid, r) * (buying ? 1.004 : 0.996)));
+      G.market[r] = Math.max(0.4, Math.min(3, demand(r) * (buying ? 1.003 : 0.997)));
     }
-    if (qty <= 0) { G.market[pid][r] = d0; return false; }
+    if (qty <= 0) { G.market[r] = d0; return false; }
     if (buying) { G.coins -= total; G.res[r] += qty; }
     else { G.coins += total; G.res[r] -= qty; }
     G.stats.trades++;
     return { qty, total };
   }
   function marketDrift(dt) {
-    for (const pid in G.market) for (const r in G.market[pid]) {
-      const d = G.market[pid][r];
-      G.market[pid][r] = d + (1 - d) * Math.min(1, 0.25 * dt);
+    for (const r in G.market) {
+      if (typeof G.market[r] !== 'number') { delete G.market[r]; continue; }
+      G.market[r] += (1 - G.market[r]) * Math.min(1, 0.25 * dt);
     }
   }
 
@@ -447,17 +461,30 @@ const Sim = (() => {
   }
 
   // ---------------- Actions ----------------
+  // Start a research now, or queue it if the forge is busy. Paid when queued.
   function startResearch(id) {
-    if (G.research || G.techs[id]) return false;
-    if (!techAvailable(id)) return false;
+    if (G.techs[id] || isQueued(id)) return false;
+    if (!techAvailable(id, true)) return false;
     if (!pay(TECHS[id].cost)) return false;
-    G.research = { id, prog: 0 };
+    if (!G.research) G.research = { id, prog: 0 };
+    else G.researchQueue.push(id);
     return true;
   }
-  function cancelResearch() {
-    if (!G.research) return;
-    refund(TECHS[G.research.id].cost);
-    G.research = null;
+  function isQueued(id) { return (G.research && G.research.id === id) || G.researchQueue.includes(id); }
+  // cancelling also cancels queued techs that depended on it
+  function cancelResearch(id) {
+    const drop = new Set([id || (G.research && G.research.id)]);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const q of G.researchQueue) if (!drop.has(q) && (TECHS[q].req || []).some(r => drop.has(r))) { drop.add(q); grew = true; }
+    }
+    for (const q of drop) if (q && isQueued(q)) refund(TECHS[q].cost);
+    G.researchQueue = G.researchQueue.filter(q => !drop.has(q));
+    if (G.research && drop.has(G.research.id)) {
+      G.research = null;
+      if (G.researchQueue.length) G.research = { id: G.researchQueue.shift(), prog: 0 };
+    }
   }
   function queueWeapon(w, n) {
     const t = Object.values(TECHS).find(t => t.weapon === w);
@@ -494,8 +521,8 @@ const Sim = (() => {
   }
 
   return {
-    tick, startExpedition, recruit, disband, launchCampaign, trade, price, partners, startResearch, cancelResearch,
-    queueWeapon, cancelQueue, upgradeBuilding, demolish, foodPerDay, refinerySpeed, expBonus, expSlots,
+    tick, startExpedition, recruit, disband, launchCampaign, trade, price, startResearch, cancelResearch,
+    queueWeapon, cancelQueue, cancelTraining, isQueued, upgradeBuilding, demolish, foodPerDay, refinerySpeed, expBonus, expSlots,
     playerSide, kingdomSide, defenders, militiaCount, marchDays, roundUnits, efficiency,
   };
 })();
@@ -504,6 +531,9 @@ const Sim = (() => {
 //  Tech helpers
 // ------------------------------------------------------------
 function techName(id) { const t = TECHS[id]; return t.weapon ? WEAPONS[t.weapon].name : t.name; }
-function techAvailable(id) { return (TECHS[id].req || []).every(r => G.techs[r]); }
+// withQueue: requirements may also be satisfied by research already queued
+function techAvailable(id, withQueue) {
+  return (TECHS[id].req || []).every(r => G.techs[r] || (withQueue && G.research && (G.research.id === r || G.researchQueue.includes(r))));
+}
 function weaponUnlocked(w) { const id = Object.keys(TECHS).find(k => TECHS[k].weapon === w); return !!G.techs[id]; }
 

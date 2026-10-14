@@ -5,7 +5,7 @@
 const Main = (() => {
   let canvas, last = 0, uiTimer = 0, modalTimer = 0, autosave = 0;
   const keys = {};
-  const mouse = { x: 0, y: 0, down: false, dragging: false, sx: 0, sy: 0, camx: 0, camy: 0, overPop: false };
+  const mouse = { x: 0, y: 0, down: false, button: 0, dragging: false, sx: 0, sy: 0, lx: 0, ly: 0 };
 
   function startNew() {
     newGame();
@@ -24,8 +24,9 @@ const Main = (() => {
     UI.ui.selected = null;
     UI.stopPlacing();
     Render.terrainDirty = true;
+    Render.fullRebuild = true;
     Render.resetWalkers();
-    Render.centerOn(22, 21);
+    Render.centerOn(22, 22);
     G.paused = false;
     G.inBattle = false;
     UI.refreshAll();
@@ -46,19 +47,18 @@ const Main = (() => {
       // never redraw panels mid-click, or the button under the cursor would be replaced
       if (modalTimer > 0.5 && !mouse.pressed) { modalTimer = 0; UI.renderBottom(); UI.renderSide(); UI.renderTutorial(); UI.renderModal(); }
       if (autosave > 30) { autosave = 0; saveGame(); }
-      UI.updateHoverPop(dt, mouse.overPop);
+      Music.update();
     }
     if (G) Render.frame(dt);
     requestAnimationFrame(loop);
   }
 
   function panKeys(dt) {
-    const sp = 700 * dt / Render.cam.zoom, t = Render.tgt;
-    if (keys.KeyA || keys.ArrowLeft) t.x -= sp;
-    if (keys.KeyD || keys.ArrowRight) t.x += sp;
-    if (keys.KeyW || keys.ArrowUp) t.y -= sp;
-    if (keys.KeyS || keys.ArrowDown) t.y += sp;
-    Render.clampCam();
+    const ax = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+    const ay = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+    if (ax || ay) Render.panKeys(ax, ay, dt);
+    if (keys.KeyQ) Render.rotateBy(-1.6 * dt);
+    if (keys.KeyE) Render.rotateBy(1.6 * dt);
   }
 
   function canvasPos(e) {
@@ -70,24 +70,25 @@ const Main = (() => {
     window.addEventListener('pointerdown', () => { mouse.pressed = true; }, true);
     window.addEventListener('pointerup', () => { mouse.pressed = false; }, true);
     window.addEventListener('blur', () => { mouse.pressed = false; });
+    // left-drag pans, right-drag rotates and tilts, click selects / places
     canvas.addEventListener('mousedown', e => {
-      if (e.button === 2) { if (UI.ui.placing) UI.stopPlacing(); return; }
       const [x, y] = canvasPos(e);
-      Object.assign(mouse, { down: true, dragging: false, sx: x, sy: y, camx: Render.cam.x, camy: Render.cam.y });
+      Object.assign(mouse, { down: true, button: e.button, dragging: false, sx: x, sy: y, lx: x, ly: y });
+      if (e.button === 0) Render.dragStart(x, y);
     });
     window.addEventListener('mousemove', e => {
       if (!G || !G.started) return;
       const [x, y] = canvasPos(e);
       mouse.x = x; mouse.y = y;
-      mouse.overPop = !!e.target.closest && !!e.target.closest('#hoverpop');
       if (mouse.down) {
         if (!mouse.dragging && Math.hypot(x - mouse.sx, y - mouse.sy) > 5) mouse.dragging = true;
         if (mouse.dragging) {
-          Render.panTo(mouse.camx - (x - mouse.sx) / Render.cam.zoom, mouse.camy - (y - mouse.sy) / Render.cam.zoom);
-          Render.clampCam();
+          if (mouse.button === 0) Render.dragMove(x, y);
+          else if (mouse.button === 2) { Render.rotateBy((x - mouse.lx) * 0.006); Render.tiltBy((y - mouse.ly) * 0.004); }
         }
+        mouse.lx = x; mouse.ly = y;
       }
-      if (e.target !== canvas) { if (!mouse.overPop) UI.setHover(null); return; }
+      if (e.target !== canvas) { UI.setHover(null); return; }
       if (UI.ui.placing) {
         const [tx, ty] = Render.screenToTile(x, y);
         const s = BUILDINGS[UI.ui.placing].size;
@@ -97,20 +98,23 @@ const Main = (() => {
       } else if (!mouse.dragging) {
         UI.setHover(Render.pick(x, y));
       }
-      canvas.style.cursor = mouse.dragging ? 'grabbing' : (Render.hover ? 'pointer' : 'default');
+      canvas.style.cursor = mouse.dragging ? (mouse.button === 2 ? 'move' : 'grabbing') : (Render.hover ? 'pointer' : 'default');
     });
     window.addEventListener('mouseup', e => {
       if (!mouse.down) return;
       mouse.down = false;
-      if (mouse.dragging || e.target !== canvas || e.button !== 0) { mouse.dragging = false; return; }
+      const wasDrag = mouse.dragging;
+      mouse.dragging = false;
+      if (wasDrag || e.target !== canvas) return;
+      if (e.button === 2) { if (UI.ui.placing) UI.stopPlacing(); return; }
+      if (e.button !== 0) return;
       const [x, y] = canvasPos(e);
       if (UI.ui.placing) {
         const g = Render.ghost;
         if (g) UI.tryPlace(g.x, g.y);
         return;
       }
-      const b = Render.pick(x, y);
-      UI.select(b);
+      UI.select(Render.pick(x, y));
     });
     canvas.addEventListener('contextmenu', e => e.preventDefault());
     canvas.addEventListener('wheel', e => {
@@ -144,6 +148,7 @@ const Main = (() => {
     Render.init(canvas);
     UI.init();
     Battle.init();
+    Music.init();
     initInput();
     UI.showIntro();
     requestAnimationFrame(loop);
