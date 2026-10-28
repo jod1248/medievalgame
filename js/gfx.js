@@ -18,7 +18,8 @@ const GFX = (() => {
     const t = new T.CanvasTexture(c);
     t.colorSpace = T.SRGBColorSpace;
     if (repeat) t.wrapS = t.wrapT = T.RepeatWrapping;
-    t.anisotropy = 4;
+    t.magFilter = T.NearestFilter;                 // hard texels: pixel art
+    t.minFilter = T.NearestMipmapNearestFilter;
     texCache[key] = t;
     return t;
   }
@@ -31,59 +32,52 @@ const GFX = (() => {
       g.fillRect(x, y, cell, cell);
     }
   }
-  // Clean, low-contrast surfaces: a hint of pattern (boards, blocks,
-  // shingle rows) on flat, bright colour, like a tidy city builder.
+  // Hand-pixelled 16×16 tiles (32×32 for grass): about one texel per
+  // screen pixel at the normal zoom, with highlight and shadow rows like
+  // classic isometric pixel art.
+  const P = (g, x, y, c, w = 1, h = 1) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+  function speckle(g, s, cols, n, seed) { for (let i = 0; i < n; i++) P(g, Math.floor(rnd(i, 1, seed) * s), Math.floor(rnd(i, 2, seed) * s), cols[i % cols.length]); }
+  // horizontal courses: [highlight, mid, mid, shadow] repeated every 4 px
+  function courses(g, s, [hi, mid, lo], seed, joints = 0) {
+    for (let y = 0; y < s; y++) P(g, 0, y, y % 4 === 0 ? hi : y % 4 === 3 ? lo : mid, s, 1);
+    if (joints) for (let r = 0; r < s / 4; r++) for (let x = (r % 2) * joints / 2; x < s; x += joints) P(g, x, r * 4, lo, 1, 3);
+    speckle(g, s, [hi, lo], s / 2, seed);
+  }
   const TEX = {
-    ground: () => canvasTex('ground', 128, (g, s) => noiseFill(g, s, '#f4f4f4', 0.035, 1, 16)),
-    dirt: () => canvasTex('dirt', 128, (g, s) => {
-      noiseFill(g, s, '#e3cc9c', 0.05, 3, 8);
-      for (let i = 0; i < 40; i++) { g.fillStyle = 'rgba(150,115,70,0.18)'; g.beginPath(); g.arc(rnd(i, 2, 4) * s, rnd(i, 3, 4) * s, 1.5 + rnd(i, 4, 4) * 2, 0, 6.3); g.fill(); }
+    ground: () => canvasTex('ground', 32, (g, s) => {
+      P(g, 0, 0, '#e6e6e6', s, s);
+      speckle(g, s, ['#f6f6f6', '#d2d2d2', '#ffffff', '#c4c4c4'], 150, 1);
+      for (let i = 0; i < 18; i++) { const x = Math.floor(rnd(i, 3, 2) * s), y = Math.floor(rnd(i, 4, 2) * s); P(g, x, y, '#b4b4b4'); P(g, x + 1, y - 1, '#c8c8c8'); P(g, x - 1, y - 1, '#d0d0d0'); }
     }),
-    cobble: () => canvasTex('cobble', 256, (g, s) => {
-      g.fillStyle = '#b9ae9c'; g.fillRect(0, 0, s, s);
-      const n = 4, cs = s / n;
-      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-        const ox = (y % 2) * cs / 2, l = 222 + rnd(x, y, 7) * 18 | 0;
-        g.fillStyle = `rgb(${l},${l - 6},${l - 16})`;
-        g.beginPath(); g.roundRect((x * cs + ox + 4) % s, y * cs + 4, cs - 8, cs - 8, 10); g.fill();
-        if ((x * cs + ox + 4) % s + cs - 8 > s) { g.beginPath(); g.roundRect((x * cs + ox + 4) % s - s, y * cs + 4, cs - 8, cs - 8, 10); g.fill(); }
+    dirt: () => canvasTex('dirt', 16, (g, s) => { P(g, 0, 0, '#d8bc8a', s, s); speckle(g, s, ['#b89a6a', '#ead2a2', '#c6a674'], 34, 3); }),
+    cobble: () => canvasTex('cobble', 16, (g, s) => {
+      P(g, 0, 0, '#9a9080', s, s);
+      for (let r = 0; r < 4; r++) for (let k = -1; k < 3; k++) {
+        const x = k * 8 + (r % 2) * 4 + 1, y = r * 4 + 1;
+        P(g, x, y, '#d6ccb8', 6, 2); P(g, x, y, '#ece4d4', 6, 1); P(g, x + 5, y, '#b8ad98', 1, 3); P(g, x, y + 2, '#b8ad98', 6, 1);
       }
     }),
-    logs: () => canvasTex('logs', 128, (g, s) => {
-      const n = 5, h = s / n;
-      for (let i = 0; i < n; i++) {
-        const grd = g.createLinearGradient(0, i * h, 0, (i + 1) * h);
-        grd.addColorStop(0, '#9a6a40'); grd.addColorStop(0.45, '#c08a58'); grd.addColorStop(1, '#8a5c36');
-        g.fillStyle = grd; g.fillRect(0, i * h, s, h);
-      }
+    logs: () => canvasTex('logs', 16, (g, s) => { courses(g, s, ['#cf9a60', '#a87040', '#5e3c20'], 5); for (let i = 0; i < 3; i++) P(g, 3 + i * 5, 1 + i * 4, '#7a5030', 2, 2); }),
+    planks: () => canvasTex('planks', 16, (g, s) => courses(g, s, ['#e6bc84', '#c8965c', '#8a5e34'], 11, 0)),
+    plaster: () => canvasTex('plaster', 16, (g, s) => { P(g, 0, 0, '#f2e8d2', s, s); speckle(g, s, ['#e2d6bc', '#fbf5e8'], 16, 21); }),
+    stone: () => canvasTex('stone', 16, (g, s) => courses(g, s, ['#ece6da', '#d6cebe', '#9e9686'], 22, 8)),
+    darkstone: () => canvasTex('darkstone', 16, (g, s) => courses(g, s, ['#a8a29a', '#8a847c', '#5e5952'], 23, 8)),
+    thatch: () => canvasTex('thatch', 16, (g, s) => { courses(g, s, ['#f0cc74', '#d8ac54', '#a07a32'], 31); for (let x = 0; x < s; x += 3) P(g, x, (x * 7) % 4 + 1, '#c09440', 1, 2); }),
+    tiles: () => canvasTex('tiles', 16, (g, s) => courses(g, s, ['#ee9070', '#d0644a', '#8e3424'], 41, 4)),
+    slate: () => canvasTex('slate', 16, (g, s) => courses(g, s, ['#9cb2cc', '#6c86a6', '#42546e'], 42, 4)),
+    darkroof: () => canvasTex('darkroof', 16, (g, s) => courses(g, s, ['#aa8268', '#86624c', '#523828'], 43, 4)),
+    field: () => canvasTex('field', 16, (g, s) => {
+      for (let y = 0; y < s; y++) P(g, 0, y, y % 4 < 2 ? '#a87a4a' : '#7e5634', s, 1);
+      for (let x = 1; x < s; x += 3) { P(g, x, 1, '#7ab448'); P(g, x + 1, 9, '#6aa040'); }
     }),
-    planks: () => canvasTex('planks', 128, (g, s) => {
-      const n = 5, w = s / n;
-      for (let i = 0; i < n; i++) {
-        const l = 0.95 + rnd(i, 1, 11) * 0.1;
-        g.fillStyle = `rgb(${200 * l | 0},${150 * l | 0},${98 * l | 0})`; g.fillRect(i * w, 0, w, s);
-        g.fillStyle = 'rgba(90,55,25,0.35)'; g.fillRect(i * w, 0, 2, s);
-      }
+    water: () => canvasTex('water', 16, (g, s) => {
+      P(g, 0, 0, '#cfe2fa', s, s);
+      for (let i = 0; i < 6; i++) { const x = Math.floor(rnd(i, 1, 52) * s), y = Math.floor(rnd(i, 2, 52) * s); P(g, x, y, '#ffffff', 3, 1); P(g, x + 3, y + 1, '#ffffff'); }
+      speckle(g, s, ['#b4cdee'], 10, 53);
     }),
-    plaster: () => canvasTex('plaster', 64, (g, s) => noiseFill(g, s, '#f6eedc', 0.03, 21, 8)),
-    stone: () => canvasTex('stone', 128, (g, s) => bricks(g, s, [214, 206, 192], 22)),
-    darkstone: () => canvasTex('darkstone', 128, (g, s) => bricks(g, s, [140, 134, 128], 23)),
-    thatch: () => canvasTex('thatch', 64, (g, s) => rows(g, s, [226, 186, 98], 31, 0)),
-    tiles: () => canvasTex('tiles', 64, (g, s) => rows(g, s, [214, 98, 70], 41, 1)),
-    slate: () => canvasTex('slate', 64, (g, s) => rows(g, s, [98, 124, 156], 42, 1)),
-    darkroof: () => canvasTex('darkroof', 64, (g, s) => rows(g, s, [132, 92, 70], 43, 1)),
-    field: () => canvasTex('field', 64, (g, s) => {
-      g.fillStyle = '#b08458'; g.fillRect(0, 0, s, s);
-      for (let y = 0; y < s; y += 16) { g.fillStyle = '#946a42'; g.fillRect(0, y, s, 6); }
-    }),
-    water: () => canvasTex('water', 128, (g, s) => {
-      g.fillStyle = '#ffffff'; g.fillRect(0, 0, s, s);
-      for (let i = 0; i < 30; i++) { g.strokeStyle = 'rgba(255,255,255,0.6)'; g.fillStyle = 'rgba(200,230,255,0.5)'; const x = rnd(i, 1, 52) * s, y = rnd(i, 2, 52) * s; g.fillRect(x, y, 10, 2); }
-    }),
-    cloth: (col) => canvasTex('cloth' + col, 64, (g, s) => {
-      g.fillStyle = typeof col === 'number' ? '#' + col.toString(16).padStart(6, '0') : col; g.fillRect(0, 0, s, s);
-      g.fillStyle = 'rgba(255,255,255,0.9)';
-      for (let x = 0; x < s; x += 16) g.fillRect(x, 0, 8, s);
+    cloth: (col) => canvasTex('cloth' + col, 16, (g, s) => {
+      P(g, 0, 0, typeof col === 'number' ? '#' + col.toString(16).padStart(6, '0') : col, s, s);
+      for (let x = 0; x < s; x += 8) P(g, x, 0, '#f4f0e6', 4, s);
     }),
     mist: () => canvasTex('mist', 128, (g, s) => {
       const grd = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
@@ -91,30 +85,6 @@ const GFX = (() => {
       g.fillStyle = grd; g.fillRect(0, 0, s, s);
     }, false),
   };
-  // big tidy blocks with soft mortar lines
-  function bricks(g, s, [r, gg, b], seed) {
-    g.fillStyle = `rgb(${r * 0.84 | 0},${gg * 0.84 | 0},${b * 0.84 | 0})`; g.fillRect(0, 0, s, s);
-    const rowsN = 4, h = s / rowsN;
-    for (let y = 0; y < rowsN; y++) {
-      let x = (y % 2) * -20;
-      while (x < s) {
-        const w = 34 + rnd(x, y, seed) * 16, l = 0.95 + rnd(y, x, seed) * 0.08;
-        g.fillStyle = `rgb(${Math.min(255, r * l) | 0},${Math.min(255, gg * l) | 0},${Math.min(255, b * l) | 0})`;
-        g.beginPath(); g.roundRect(x + 2, y * h + 2, w - 4, h - 4, 4); g.fill();
-        x += w;
-      }
-    }
-  }
-  // roof rows: soft bands with a darker lip under each course
-  function rows(g, s, [r, gg, b], seed, scallop) {
-    g.fillStyle = `rgb(${r},${gg},${b})`; g.fillRect(0, 0, s, s);
-    const n = 4, h = s / n;
-    for (let y = 0; y < n; y++) {
-      g.fillStyle = `rgba(0,0,0,0.13)`; g.fillRect(0, y * h + h - 3, s, 3);
-      g.fillStyle = `rgba(255,255,255,0.1)`; g.fillRect(0, y * h, s, 3);
-      if (scallop) for (let x = (y % 2) * 8; x < s; x += 16) { g.fillStyle = 'rgba(0,0,0,0.08)'; g.fillRect(x, y * h, 1.5, h); }
-    }
-  }
 
   // ---------- materials ----------
   function mat(key, opts = {}) {
@@ -367,5 +337,79 @@ const GFX = (() => {
     return personGeos;
   }
 
-  return { TEX, M, mat, boxGeo, gableGeo, roof, pyramidGeo, merge, bake, add, block, swayMaterial, trees, person, windUniform };
+  // ---------- pixel-art renderer ----------
+  // Draws a scene at a fraction of the screen resolution, then blows it
+  // up with hard pixels: dark outlines where depth jumps or folds, and
+  // colours snapped to a limited palette with an ordered dither.
+  function pixelator(renderer, opts = {}) {
+    const px = opts.pixel || 2;
+    let rt = null, w = 0, h = 0;
+    const mat = new T.ShaderMaterial({
+      uniforms: {
+        tColor: { value: null }, tDepth: { value: null }, res: { value: new T.Vector2(1, 1) },
+        near: { value: 0.1 }, far: { value: 100 }, ortho: { value: 1 }, thr: { value: 0.05 },
+        outline: { value: opts.outline ?? 0.5 }, levels: { value: opts.levels || 22 },
+      },
+      vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+      fragmentShader: `
+        uniform sampler2D tColor; uniform sampler2D tDepth; uniform vec2 res;
+        uniform float near, far, ortho, thr, outline, levels;
+        varying vec2 vUv;
+        float lin(float d) {
+          if (ortho > 0.5) return near + d * (far - near);
+          float z = d * 2.0 - 1.0;
+          return 2.0 * near * far / (far + near - z * (far - near));
+        }
+        float D(vec2 p, vec2 o) { return lin(texture2D(tDepth, p + o / res).x); }
+        const float B[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);
+        void main() {
+          vec2 cell = floor(vUv * res);
+          vec2 p = (cell + 0.5) / res;
+          vec3 c = texture2D(tColor, p).rgb;
+          float d = D(p, vec2(0.0)), l = D(p, vec2(-1.0, 0.0)), r = D(p, vec2(1.0, 0.0)), u = D(p, vec2(0.0, 1.0)), dn = D(p, vec2(0.0, -1.0));
+          float t = ortho > 0.5 ? thr : thr * d;
+          float edge = 0.0;
+          if (max(max(l - d, r - d), max(u - d, dn - d)) > t * 4.0) edge = 1.0;           // silhouette
+          else if (max(abs(l + r - 2.0 * d), abs(u + dn - 2.0 * d)) > t) edge = 0.55;      // fold or crease
+          c *= 1.0 - edge * outline;
+          gl_FragColor = vec4(c, 1.0);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+          int i = int(mod(cell.x, 4.0)) + int(mod(cell.y, 4.0)) * 4;
+          gl_FragColor.rgb = floor(gl_FragColor.rgb * levels + (B[i] + 0.5) / 16.0) / levels;
+        }`,
+      depthTest: false, depthWrite: false,
+    });
+    const quad = new T.Mesh(new T.PlaneGeometry(2, 2), mat);
+    quad.frustumCulled = false;
+    const qs = new T.Scene(); qs.add(quad);
+    const qc = new T.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    return {
+      pixel: px,
+      size: () => [w, h],
+      setSize(W, H) {
+        const nw = Math.max(1, Math.ceil(W / px)), nh = Math.max(1, Math.ceil(H / px));
+        if (nw === w && nh === h && rt) return;
+        w = nw; h = nh;
+        if (rt) { rt.depthTexture.dispose(); rt.dispose(); }
+        rt = new T.WebGLRenderTarget(w, h, { minFilter: T.NearestFilter, magFilter: T.NearestFilter, depthBuffer: true });
+        rt.depthTexture = new T.DepthTexture(w, h);
+        rt.depthTexture.type = T.UnsignedIntType;
+        mat.uniforms.tColor.value = rt.texture; mat.uniforms.tDepth.value = rt.depthTexture;
+        mat.uniforms.res.value.set(w, h);
+      },
+      // thr: for an orthographic camera, world units of depth that count as a fold;
+      // for a perspective one, a fraction of the distance
+      render(scene, camera, thr) {
+        renderer.setRenderTarget(rt);
+        renderer.render(scene, camera);
+        renderer.setRenderTarget(null);
+        const U = mat.uniforms;
+        U.near.value = camera.near; U.far.value = camera.far; U.ortho.value = camera.isOrthographicCamera ? 1 : 0; U.thr.value = thr;
+        renderer.render(qs, qc);
+      },
+    };
+  }
+
+  return { pixelator, TEX, M, mat, boxGeo, gableGeo, roof, pyramidGeo, merge, bake, add, block, swayMaterial, trees, person, windUniform };
 })();

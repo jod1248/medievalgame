@@ -13,7 +13,7 @@ const Battle = (() => {
   const queue = [];
   let cur = null;
   let renderer = null, scene, camera, canvas, W = 1, H = 1;
-  let sunL, hemiL, moonL;
+  let sunL, hemiL, moonL, pix = null;
   const torchLights = [];
   let raf = 0, last = 0;
   let sceneryGroup = null, unitGroup = null;
@@ -66,10 +66,11 @@ const Battle = (() => {
   function ensureRenderer() {
     if (renderer) return;
     canvas = document.querySelector('#battle canvas');
-    renderer = new T.WebGLRenderer({ canvas, antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer = new T.WebGLRenderer({ canvas, antialias: false });
+    renderer.setPixelRatio(1);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = T.PCFSoftShadowMap;
+    renderer.shadowMap.type = T.PCFShadowMap;
+    pix = GFX.pixelator(renderer, { pixel: 2, levels: 24, outline: 0.55 });
     renderer.toneMapping = T.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.12;
     renderer.outputColorSpace = T.SRGBColorSpace;
@@ -104,6 +105,7 @@ const Battle = (() => {
     if (!renderer) return;
     W = canvas.clientWidth || window.innerWidth; H = canvas.clientHeight || window.innerHeight;
     renderer.setSize(W, H, false);
+    pix.setSize(W, H);
     camera.aspect = W / H; camera.updateProjectionMatrix();
   }
 
@@ -1013,7 +1015,7 @@ const Battle = (() => {
     camera.position.set(mid + Math.sin(ang) * dist * Math.cos(pitch) + (Math.random() - 0.5) * sh, dist * Math.sin(pitch) + (Math.random() - 0.5) * sh, Math.cos(ang) * dist * Math.cos(pitch));
     camera.lookAt(mid, 0, 0);
     scene.fog.near = dist * 1.4; scene.fog.far = dist * 4 + 20;
-    renderer.render(scene, camera);
+    pix.render(scene, camera, 0.0035);
   }
 
   // ---------------------------------------------------------

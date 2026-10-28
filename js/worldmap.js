@@ -5,6 +5,7 @@
 // ============================================================
 
 const WorldMap = (() => {
+  let pix = null;
   const T = THREE;
   const SCALE = 2.2;                       // world-map coords -> 3D units
   let root = null, canvas, labels, renderer, scene, camera, raf = 0, last = 0;
@@ -38,10 +39,11 @@ const WorldMap = (() => {
     root = document.createElement('div');
     root.className = 'wm-root';
     root.append(canvas, labels);
-    renderer = new T.WebGLRenderer({ canvas, antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer = new T.WebGLRenderer({ canvas, antialias: false });
+    renderer.setPixelRatio(1);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = T.PCFSoftShadowMap;
+    renderer.shadowMap.type = T.PCFShadowMap;
+    pix = GFX.pixelator(renderer, { pixel: 2, levels: 24, outline: 0.5 });
     renderer.toneMapping = T.ACESFilmicToneMapping;
     renderer.outputColorSpace = T.SRGBColorSpace;
     scene = new T.Scene();
@@ -250,7 +252,7 @@ const WorldMap = (() => {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     const w = root.clientWidth, h = root.clientHeight;
     if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) {
-      renderer.setSize(w, h, false); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix();
+      renderer.setSize(w, h, false); pix.setSize(w, h); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix();
     }
     if (conquestKey() !== builtKey) buildCities();
     GFX.windUniform.value += dt;
@@ -281,7 +283,7 @@ const WorldMap = (() => {
       const m = armyModel(new T.Color(kd.color).getHex()); m.position.set(x, Math.max(0.1, heightAt(x, z)), z);
       scene.add(m); armyMarkers.push(m);
     }
-    renderer.render(scene, camera);
+    pix.render(scene, camera, 0.004);
     // labels follow the cities
     const v = new T.Vector3();
     labels.querySelectorAll('.wm-label').forEach(el => {

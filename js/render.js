@@ -14,11 +14,14 @@ const Render = (() => {
   let time = 0;
   const api = { terrainDirty: true, hover: null, ghost: null, pulse: null, selected: null };
 
-  // camera: target point + yaw/pitch/distance, eased toward `want`.
-  // It faces north (toward -z); it can swing 15° either side and tilt
-  // from just above the ground to almost straight down.
-  const YAW_LIMIT = 0.26, PITCH_MIN = 0.1, PITCH_MAX = 1.5;
-  const cam = { x: 22, z: 21, yaw: 0, pitch: 0.85, dist: 24 };
+  // camera: orthographic, looking in from the south-east corner like an
+  // isometric pixel-art game. `dist` sets the zoom. It can swing 15°
+  // either side of the corner view and tilt from near level to near
+  // straight down.
+  const YAW0 = Math.PI / 4, YAW_LIMIT = 0.26, PITCH_MIN = 0.16, PITCH_MAX = 1.5;
+  const CAM_BACK = 160;                   // how far back the ortho camera sits
+  const cam = { x: 22, z: 21, yaw: YAW0, pitch: 0.6, dist: 24 };
+  let pix = null;
   const want = { ...cam };
 
   // scene parts
@@ -58,8 +61,8 @@ const Render = (() => {
     return h - waterAt(x, z) * 0.45;
   }
   const FOG_COL = new T.Color('#cfe2ee');
-  const GC = { water: new T.Color('#7d9a62'), sand: new T.Color('#ecd9a0'), forest: new T.Color('#5f9e3e'), forest2: new T.Color('#74ad48'),
-    grass: new T.Color('#7cbf4e'), grass2: new T.Color('#a2d062'), hill: new T.Color('#6ea84a') };
+  const GC = { water: new T.Color('#7a8a5a'), sand: new T.Color('#e6cf94'), forest: new T.Color('#5a8a38'), forest2: new T.Color('#6e9a40'),
+    grass: new T.Color('#78a646'), grass2: new T.Color('#98b856'), hill: new T.Color('#6a9444') };
   function groundColor(x, z, out) {
     const t = tileAt(Math.floor(x), Math.floor(z));
     const n = smoothNoise(x, z, 7, 21), n2 = smoothNoise(x, z, 3, 22);
@@ -93,7 +96,9 @@ const Render = (() => {
     }
     geo.setAttribute('color', new T.BufferAttribute(col, 3));
     geo.computeVertexNormals();
-    const m = new T.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+    const tex = GFX.TEX.ground();
+    tex.repeat.set(size / 2, size / 2);
+    const m = new T.MeshStandardMaterial({ vertexColors: true, map: tex, roughness: 1 });
     groundMesh = new T.Mesh(geo, m);
     groundMesh.receiveShadow = true;
     worldGroup.add(groundMesh);
@@ -209,8 +214,8 @@ const Render = (() => {
     for (const dz of [-0.17, 0.17]) GFX.add(cart, new T3.CylinderGeometry(0.11, 0.11, 0.03, 12), M.darkwood(), 0, 0.11, dz, { rx: Math.PI / 2 });
     GFX.add(cart, GFX.boxGeo(0.5, 0.02, 0.02), M.wood(), -0.45, 0.12, 0.08); GFX.add(cart, GFX.boxGeo(0.5, 0.02, 0.02), M.wood(), -0.45, 0.12, -0.08);
     for (let k = 0; k < 3; k++) GFX.add(cart, new T3.CylinderGeometry(0.05, 0.05, 0.14, 8), M.thatch(), -0.1 + k * 0.1, 0.33, 0, { rz: Math.PI / 2 });
-    cart.position.set(PLAZA.x0 - 0.6, 0, PLAZA.y0 + 1.4); cart.rotation.y = -0.3; g.add(cart);
-    Models.crate(g, PLAZA.x1 + 0.7, fz - 0.4, 0.16); Models.crate(g, PLAZA.x1 + 0.75, fz - 0.15, 0.12); Models.barrel(g, PLAZA.x1 + 0.6, fz + 0.2);
+    cart.position.set(PLAZA.x1 + 0.9, 0, PLAZA.y0 + 1.4); cart.rotation.y = -0.3; g.add(cart);
+    Models.crate(g, PLAZA.x1 + 0.7, fz + 0.6, 0.16); Models.crate(g, PLAZA.x1 + 0.75, fz + 0.85, 0.12); Models.barrel(g, PLAZA.x1 + 0.6, fz + 1.2);
     Models.flag(g, PLAZA.x0 + 0.1, 0, fz - 1.05, 0x2c4f8a, 0.8);
     Models.flag(g, PLAZA.x0 + 0.1, 0, fz + 0.95, 0xb5462e, 0.8);
     const anims = g.userData.anim || [], lights = g.userData.lights || [];
@@ -625,6 +630,7 @@ const Render = (() => {
   }
   function updateSky(dt) {
     for (const c of clouds) { c.position.x += c.userData.v * dt; if (c.position.x > MAP_W + 40) c.position.x = -40; }
+    for (const c of clouds) c.visible = cam.pitch > 0.45;     // low views would look through them
     const day = daylight();
     for (const f of birds) {
       f.position.x += f.userData.v * dt;
@@ -632,13 +638,14 @@ const Render = (() => {
       f.visible = day > 0.5;
       f.children.forEach((bird, k) => bird.children.forEach(w => { w.rotation.x = w.userData.side * Math.sin(time * 9 + k) * 0.6; }));
     }
-    const cp = camera.position;
+    const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
     for (const m of mists) {
       const b = m.userData.base;
       m.position.x = b.x + Math.sin(time * 0.07 + m.userData.ph) * 1.5;
       m.position.z = b.z + Math.cos(time * 0.05 + m.userData.ph) * 1.2;
-      // never let the camera sit inside a fog bank
-      m.visible = Math.hypot(cp.x - m.position.x, cp.z - m.position.z) > m.scale.x * 1.3 + 2;
+      // fog banks on the near side would sit in front of the town
+      const ahead = (m.position.x - cam.x) * fx + (m.position.z - cam.z) * fz;
+      m.visible = ahead < cam.dist * 0.25;
     }
     const night = 1 - day;
     let i = 0;
@@ -720,7 +727,7 @@ const Render = (() => {
     scene.background = _sky;
     scene.fog.color.copy(_sky);
     GFX.M.window().emissiveIntensity = 0.15 + night * 1.8;
-    const sc = sun.shadow.camera, ext = Math.min(40, cam.dist * 0.9);
+    const sc = sun.shadow.camera, ext = Math.min(48, cam.dist * 1.15);
     if (sc.right !== ext) { sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; sc.updateProjectionMatrix(); }
     if (api.lightsDirty) collectLights();
     const near = lightSources.slice().sort((A, B) => ((A.x - cam.x) ** 2 + (A.z - cam.z) ** 2) - ((B.x - cam.x) ** 2 + (B.z - cam.z) ** 2));
@@ -739,11 +746,13 @@ const Render = (() => {
     const k = 1 - Math.exp(-dt * 10);
     for (const key of ['x', 'z', 'yaw', 'pitch', 'dist']) cam[key] += (want[key] - cam[key]) * k;
     const cp = Math.cos(cam.pitch);
-    const px = cam.x + Math.sin(cam.yaw) * cp * cam.dist, pz = cam.z + Math.cos(cam.yaw) * cp * cam.dist;
-    camera.position.set(px, Math.max(Math.sin(cam.pitch) * cam.dist, heightAt(px, pz) + 0.6), pz);
+    camera.position.set(cam.x + Math.sin(cam.yaw) * cp * CAM_BACK, Math.sin(cam.pitch) * CAM_BACK, cam.z + Math.cos(cam.yaw) * cp * CAM_BACK);
     camera.lookAt(cam.x, 0, cam.z);
-    scene.fog.near = cam.dist * 1.15;
-    scene.fog.far = cam.dist * 3.2 + 20;
+    const hh = cam.dist * 0.34, aspect = W / Math.max(1, H);
+    camera.left = -hh * aspect; camera.right = hh * aspect; camera.top = hh; camera.bottom = -hh;
+    camera.updateProjectionMatrix();
+    scene.fog.near = CAM_BACK + cam.dist * 0.7;
+    scene.fog.far = CAM_BACK + cam.dist * 2.4 + 14;
   }
   function clampCam() {
     want.x = Math.max(-6, Math.min(MAP_W + 6, want.x));
@@ -768,7 +777,7 @@ const Render = (() => {
     want.x += (ax * rx + ay * fx) * sp; want.z += (ax * rz + ay * fz) * sp;
     clampCam();
   }
-  function rotateBy(a) { want.yaw = Math.max(-YAW_LIMIT, Math.min(YAW_LIMIT, want.yaw + a)); }
+  function rotateBy(a) { want.yaw = Math.max(YAW0 - YAW_LIMIT, Math.min(YAW0 + YAW_LIMIT, want.yaw + a)); }
   function tiltBy(a) { want.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, want.pitch + a)); }
   function zoomAt(sx, sy, factor) {
     const before = groundPoint(sx, sy);
@@ -806,16 +815,17 @@ const Render = (() => {
   // ---------- setup ----------
   function init(c) {
     canvas = c;
-    renderer = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer = new T.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(1);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = T.PCFSoftShadowMap;
+    renderer.shadowMap.type = T.PCFShadowMap;
+    pix = GFX.pixelator(renderer, { pixel: 2, levels: 24, outline: 0.55 });
     renderer.toneMapping = T.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.12;
     renderer.outputColorSpace = T.SRGBColorSpace;
     scene = new T.Scene();
     scene.fog = new T.Fog(0xb7d0dc, 30, 90);
-    camera = new T.PerspectiveCamera(34, 1, 0.3, 400);
+    camera = new T.OrthographicCamera(-10, 10, 10, -10, 1, 400);
     hemi = new T.HemisphereLight(0xcfe6ff, 0x5a6a3a, 0.9);
     sun = new T.DirectionalLight(0xfff1d6, 2.6);
     sun.castShadow = true;
@@ -837,7 +847,7 @@ const Render = (() => {
   function resize() {
     W = canvas.clientWidth || window.innerWidth; H = canvas.clientHeight || window.innerHeight;
     renderer.setSize(W, H, false);
-    camera.aspect = W / H; camera.updateProjectionMatrix();
+    pix.setSize(W, H);
   }
   const worldKey = () => G.territory + '|' + has('palisade') + has('stoneWalls');
   // rebuild everything that depends on the map (new game / load / territory change)
@@ -872,7 +882,8 @@ const Render = (() => {
     placeRing(pulseRing, api.pulse, true);
     if (waterMesh) waterMesh.material.map.offset.set(time * 0.01, time * 0.006);
     updateLighting();
-    renderer.render(scene, camera);
+    // folds count when depth bends by more than about half a pixel's worth of world
+    pix.render(scene, camera, (cam.dist * 0.68 / pix.size()[1]) * 0.6);
   }
 
   return Object.assign(api, {

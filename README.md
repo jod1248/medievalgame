@@ -10,12 +10,13 @@ Send 50 villagers into the woods to gather wood. They return with 100 wood, enou
 From there you grow the town, build refineries, forge an army, fight off raiders, and conquer the neighbouring kingdoms.
 
 ## Features
-- **3D town in a clean city-builder style (Three.js):**
-  - Bright low-poly look with soft shadows, a moving sun, and day/night with glowing windows and lamp-lit streets.
+- **Isometric pixel-art town (Three.js):**
+  - Seen from the corner through an orthographic camera and rendered at half resolution, with pixel outlines, hand-pixelled textures and a dithered palette (battles and the world map use the same look).
+  - A moving sun, hard shadows, and day/night with glowing windows and lamp-lit streets.
   - Swaying forests, clouds, birds and fireflies; fog banks roll along the misty hills at the edge of the world.
   - Settlers arrive through the gates in family groups, carrying bundles or pulling handcarts, and walk to their new homes.
-  - Camera: drag or WASD to pan, scroll to zoom. Right-drag (or Q/E, R/F) turns the view up to 15° either way and tilts it from almost level to almost straight down.
-- **Command square** in the back-right corner of town: Town Hall, Forge, Barracks and Marketplace round a fountain. They are scenery; you run them from the tool dock at the bottom (Expeditions, Tech Tree, Forge, Market, Army, World Map), and each tool shows its building's level and upgrade.
+  - Camera: drag or WASD to pan, scroll to zoom. Right-drag (or Q/E, R/F) turns the view up to 15° either side of the corner view and tilts it from low to almost straight down.
+- **Command square** in the middle of the town's back-right (north) side: Town Hall, Forge, Barracks and Marketplace round a fountain. They are scenery; you run them from the tool dock at the bottom (Expeditions, Tech Tree, Forge, Market, Army, World Map), and each tool shows its building's level and upgrade.
 - **Build tool:** opens a tray of buildings above the dock. Picking one shows its stats before you place it.
 - **Walls** ring the town, with gates and corner towers. They upgrade from palisade to stone and grow when you conquer land.
 - **Click a building** you placed to see its stats, next-level preview, upgrade and controls.

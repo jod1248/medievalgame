@@ -5,12 +5,13 @@
 const MAP_W = 44, MAP_H = 44;
 const T_GRASS = 0, T_FOREST = 1, T_WATER = 2, T_ROAD = 3, T_PLAZA = 4, T_SAND = 5;
 const TOWN_CENTER = [20, 22];
-// compact command square in the back-right corner of the town
-const PLAZA = { x0: 25, y0: 12, x1: 30, y1: 17 };
+// compact command square in the middle of the town's north side (the
+// back-right edge from the corner camera), beside the north road
+const PLAZA = { x0: 18, y0: 12, x1: 23, y1: 17 };
 const PLAZA_MID = [(PLAZA.x0 + PLAZA.x1 + 1) / 2, (PLAZA.y0 + PLAZA.y1 + 1) / 2];
 const START_TERRITORY = 11, MAX_TERRITORY = 21;
 const SAVE_KEY = 'emberfall_save_v1';
-const SAVE_VERSION = 4;   // saves from older versions can't be loaded
+const SAVE_VERSION = 5;   // saves from older versions can't be loaded
 
 let G = null;   // the one and only game state
 
@@ -65,7 +66,6 @@ function generateMap() {
   for (let x = 0; x <= 24; x++) set(x, 22, T_ROAD);
   for (let y = 0; y < MAP_H; y++) set(17, y, T_ROAD);
   for (let y = 14; y <= 30; y++) set(9, y, T_ROAD);
-  for (let x = 18; x < PLAZA.x0; x++) set(x, 14, T_ROAD);          // lane to the command square
   // Command square
   for (let y = PLAZA.y0; y <= PLAZA.y1; y++) for (let x = PLAZA.x0; x <= PLAZA.x1; x++) set(x, y, T_PLAZA);
   // Clear the town core and the square's surroundings of trees
@@ -112,7 +112,8 @@ function newGame() {
   placeBuilding('market', PLAZA.x1 - 1, PLAZA.y1 - 1, true);
   // Twenty houses for two hundred people
   for (const x of [10, 12, 14, 19, 21, 23]) { placeBuilding('house', x, 21, true); placeBuilding('house', x, 23, true); }
-  for (const y of [16, 18, 26, 28]) { placeBuilding('house', 16, y, true); placeBuilding('house', 18, y, true); }
+  for (const y of [16, 18, 26, 28]) { placeBuilding('house', 16, y, true); if (y !== 16) placeBuilding('house', 18, y, true); }
+  placeBuilding('house', 25, 21, true);
   // Farms and a quarry
   placeBuilding('farm', 10, 15, true);
   placeBuilding('farm', 13, 15, true);
