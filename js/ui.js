@@ -15,7 +15,7 @@ const UI = (() => {
     partner: 'oakhold', tradeQty: 10, mktQuery: '',
     armyTab: 'army', mapSel: null, attackSel: {},
     hoverB: null, hoverHideT: 0,
-    armed: null,
+    armed: null, buildOpen: false,
   };
 
   // set innerHTML only when it changed (keeps hover states, no flicker)
@@ -79,10 +79,10 @@ const UI = (() => {
   const TUT = [
     { text: 'Send 50 villagers to gather wood', target: '#act-exp', done: () => G.expeditions.some(e => e.type === 'wood') || G.stats.woodGathered >= 100 },
     { text: 'Wait for the wood to arrive', done: () => G.stats.woodGathered >= 100, progress: () => { const e = G.expeditions.find(e => e.type === 'wood'); return e ? 1 - e.t / e.total : 1; } },
-    { text: 'Build 5 houses', target: '[data-type=house]', done: () => G.stats.housesBuilt >= 5, progress: () => G.stats.housesBuilt / 5, reward: { wood: 60, coins: 60 } },
-    { text: 'Click the Forge, then Tech Tree', target: '#act-tech', pulse: 'forge', done: () => (ui.modal && ui.modal.kind === 'forge' && ui.forgeTab === 'tech') || G.research || G.stats.researched > 0 },
+    { text: 'Open Build and place 5 houses', target: () => ui.buildOpen ? '[data-type=house]' : '#act-build', done: () => G.stats.housesBuilt >= 5, progress: () => G.stats.housesBuilt / 5, reward: { wood: 60, coins: 60 } },
+    { text: 'Open the Tech Tree', target: '#act-tech', done: () => (ui.modal && ui.modal.kind === 'forge' && ui.forgeTab === 'tech') || G.research || G.stats.researched > 0 },
     { text: 'Research Basic Refinery', target: '.tnode[data-id=ref1]', done: () => (G.research && G.research.id === 'ref1') || has('ref1'), before: () => { ui.techTab = 'refining'; } },
-    { text: 'Build a Sawmill', target: '[data-type=sawmill]', done: () => G.buildings.some(b => b.type === 'sawmill'), reward: { wood: 40, stone: 20 } },
+    { text: 'Build a Sawmill', target: () => ui.buildOpen ? '[data-type=sawmill]' : '#act-build', done: () => G.buildings.some(b => b.type === 'sawmill'), reward: { wood: 40, stone: 20 } },
     { text: 'Forge 5 weapons', target: '#act-forge', done: () => G.stats.weaponsForged >= 5, progress: () => G.stats.weaponsForged / 5 },
     { text: 'Train 5 soldiers', target: '#act-army', done: () => G.stats.recruited >= 5, progress: () => G.stats.recruited / 5 },
     { text: 'Sell goods at the Market for coins', target: '#act-market', done: () => G.stats.trades >= 1 },
@@ -105,33 +105,44 @@ const UI = (() => {
     setHTML(el, `<span class="tstep">${G.tut + 1}/${TUT.length}</span><span class="ttext">${st.text}</span>
       ${p !== null ? `<span class="tbar"><i style="width:${p * 100}%"></i></span>` : ''}
       ${st.final ? `<button data-act="tutdone">${ic('check')}</button>` : `<button class="tskip" data-act="tutskip" title="Skip tutorial">${ic('close')}</button>`}`);
-    if (st.target) document.querySelectorAll(st.target).forEach(e => e.classList.add('tut-glow'));
-    if (st.pulse) Render.pulse = findBuilding(st.pulse);
+    const target = typeof st.target === 'function' ? st.target() : st.target;
+    if (target) document.querySelectorAll(target).forEach(e => e.classList.add('tut-glow'));
   }
 
   // ---------------------------------------------------------
-  //  Bottom build bar
+  //  Bottom toolbar; Build opens a tray of buildings above it
   // ---------------------------------------------------------
+  const TOOLS = [
+    ['act-build', 'hammer', '', '', 'Build'],
+    ['act-exp', 'compass', 'townhall', '', 'Expeditions'],
+    ['act-tech', 'tech', 'forge', 'tech', 'Tech Tree'],
+    ['act-forge', 'anvil', 'forge', 'craft', 'Forge'],
+    ['act-market', 'scales', 'market', '', 'Market'],
+    ['act-army', 'battle', 'army', 'army', 'Army'],
+    ['act-map', 'map', 'army', 'map', 'World Map'],
+  ];
   function renderBottom() {
-    let h = '<div class="buildlist">';
-    for (const t of BUILD_MENU) {
-      const d = BUILDINGS[t];
-      const locked = d.requires && !has(d.requires);
-      if (locked && d.refinery && d.requires !== 'ref1') continue;   // keep the bar short
-      const afford = canAfford(d.cost);
-      h += `<button class="bbtn ${ui.placing === t ? 'on' : ''} ${locked ? 'locked' : ''} ${!afford ? 'poor' : ''}" data-act="place" data-type="${t}"
-        title="${tip(d.desc + (locked ? ' Needs ' + techName(d.requires) + '.' : ''))}">
-        ${ic(d.icon, 'bi')}<span class="bn">${d.name}</span><span class="bc">${locked ? ic('lock') + ' ' + techName(d.requires) : costHTML(d.cost)}</span></button>`;
+    let h = '';
+    if (ui.buildOpen) {
+      h += '<div class="buildtray"><div class="buildlist">';
+      for (const t of BUILD_MENU) {
+        const d = BUILDINGS[t];
+        const locked = d.requires && !has(d.requires);
+        if (locked && d.refinery && d.requires !== 'ref1') continue;   // keep the tray short
+        const afford = canAfford(d.cost);
+        h += `<button class="bbtn ${ui.placing === t ? 'on' : ''} ${locked ? 'locked' : ''} ${!afford ? 'poor' : ''}" data-act="place" data-type="${t}"
+          title="${tip(d.desc + (locked ? ' Needs ' + techName(d.requires) + '.' : ''))}">
+          ${ic(d.icon, 'bi')}<span class="bn">${d.name}</span><span class="bc">${locked ? ic('lock') + ' ' + techName(d.requires) : costHTML(d.cost)}</span></button>`;
+      }
+      h += '</div></div>';
     }
-    h += '</div><div class="actlist">';
-    for (const [id, icon, kind, tab, label] of [
-      ['act-exp', 'compass', 'townhall', '', 'Expeditions'],
-      ['act-tech', 'tech', 'forge', 'tech', 'Tech Tree'],
-      ['act-forge', 'anvil', 'forge', 'craft', 'Forge'],
-      ['act-market', 'scales', 'market', '', 'Market'],
-      ['act-army', 'battle', 'army', 'army', 'Army'],
-      ['act-map', 'map', 'army', 'map', 'World Map'],
-    ]) h += `<button id="${id}" class="abtn" data-act="open" data-kind="${kind}" data-tab="${tab}">${ic(icon)}<span>${label}</span></button>`;
+    h += '<div class="toolbar">';
+    for (const [id, icon, kind, tab, label] of TOOLS) {
+      const on = id === 'act-build' ? ui.buildOpen : ui.modal && ui.modal.kind === kind && (!tab || (kind === 'forge' ? ui.forgeTab : ui.armyTab) === tab);
+      h += id === 'act-build'
+        ? `<button id="${id}" class="abtn ${on ? 'on' : ''}" data-act="buildtray">${ic(icon)}<span>${label}</span></button><span class="tsep"></span>`
+        : `<button id="${id}" class="abtn ${on ? 'on' : ''}" data-act="open" data-kind="${kind}" data-tab="${tab}">${ic(icon)}<span>${label}</span></button>`;
+    }
     h += '</div>';
     setHTML($('bottom'), h);
   }
@@ -178,16 +189,26 @@ const UI = (() => {
     return out.join('');
   }
 
-  // Labelled actions for the command-center buildings
-  function buildingActions(b) {
-    const btn = (icon, label, kind, tab) => `<button class="big wide" data-act="open" data-kind="${kind}" data-tab="${tab || ''}">${ic(icon)} ${label}</button>`;
-    switch (b.type) {
-      case 'forge': return btn('tech', 'Tech Tree', 'forge', 'tech') + btn('anvil', 'Forge Weapons', 'forge', 'craft') + btn('shield', 'Unit Guide', 'forge', 'guide');
-      case 'market': return btn('scales', 'Trade', 'market');
-      case 'barracks': return btn('battle', 'Army', 'army', 'army') + btn('wall', 'Defence', 'army', 'defense') + btn('map', 'World Map', 'army', 'map');
-      case 'townhall': return btn('compass', 'Expeditions', 'townhall');
-    }
-    return '';
+  // Command-square buildings aren't clicked any more: each tool shows
+  // its building's level and upgrade in a strip at the top
+  function hqHTML(type) {
+    const b = findBuilding(type), d = BUILDINGS[type], L = b.level, n = L + 1;
+    const pair = (label, x, y) => `<span class="hqstat">${label} <b>${x}</b>${y !== undefined ? ` ${ic('arrowR', '', '#8fd16a')} <em>${y}</em>` : ''}</span>`;
+    const more = L < d.maxLevel && b.upg === undefined;
+    const stats = {
+      forge: () => pair('Speed', '×' + d.speed[L - 1], more ? '×' + d.speed[n - 1] : undefined),
+      market: () => pair('Margin', Math.round(d.spread[L - 1] * 100) + '%', more ? Math.round(d.spread[n - 1] * 100) + '%' : undefined),
+      barracks: () => pair('Army', d.capacity[L - 1], more ? d.capacity[n - 1] : undefined) + pair('Training', '×' + d.trainSpeed[L - 1], more ? '×' + d.trainSpeed[n - 1] : undefined),
+      townhall: () => pair('Expeditions', d.expSlots[L - 1], more ? d.expSlots[n - 1] : undefined) + pair('Haul', '+' + Math.round((d.expBonus[L - 1] - 1) * 100) + '%', more ? '+' + Math.round((d.expBonus[n - 1] - 1) * 100) + '%' : undefined),
+    }[type]();
+    let h = `<div class="hqrow"><span class="hqname">${ic(d.icon)} ${d.name} <small>Level ${L} / ${d.maxLevel}</small></span>${stats}<span class="hqact">`;
+    if (b.upg !== undefined) h += `${ic('hammer')} Upgrading <span class="bar"><div style="width:${b.upg * 100}%"></div></span>`;
+    else if (L < d.maxLevel) {
+      const req = d.upgradeReq && d.upgradeReq[L], locked = req && !has(req), cost = d.upgrade[L];
+      h += locked ? `<span class="lockline">${ic('lock')} ${techName(req)}</span>` : `<span class="costrow">${costHTML(cost)}</span>`;
+      h += `<button data-act="upgradehq" data-type="${type}" ${locked || !canAfford(cost) ? 'disabled' : ''}>${ic('up')} Upgrade</button>`;
+    } else h += `${ic('crown', '', '#f1c75b')} Max`;
+    return h + '</span></div>';
   }
 
   // What a building will do, shown while placing it
@@ -240,7 +261,6 @@ const UI = (() => {
       if (b.type === 'barracks') h += statLine(ic('battle'), 'Army size', `${totalSoldiers()} / ${armyCapacity()}`);
       if (b.type === 'townhall') h += statLine(ic('compass'), 'Expeditions', `${G.expeditions.length} / ${d.expSlots[b.level - 1]}`);
       h += '</div>';
-      h += buildingActions(b);
       if (b.type === 'mine') h += '<div class="lbl">Ore to dig</div><div class="opts">' + ORE_TYPES.map(o => `<button class="${b.ore === o ? 'on' : ''}" data-act="ore" data-ore="${o}">${resIc(o)} ${RES[o].name.replace(' Ore', '')}</button>`).join('') + '</div>';
       if (d.refinery) {
         const r = RECIPES[d.recipe];
@@ -314,7 +334,7 @@ const UI = (() => {
   // ---------- Forge ----------
   function forgeHTML() {
     const f = findBuilding('forge');
-    let h = tabs([['tech', ic('tech') + ' Tech Tree'], ['craft', ic('anvil') + ' Forge Weapons'], ['guide', ic('shield') + ' Unit Guide']], ui.forgeTab, 'forgetab');
+    let h = hqHTML('forge') + tabs([['tech', ic('tech') + ' Tech Tree'], ['craft', ic('anvil') + ' Forge Weapons'], ['guide', ic('shield') + ' Unit Guide']], ui.forgeTab, 'forgetab');
     if (ui.forgeTab === 'tech') h += techTreeHTML(f);
     else if (ui.forgeTab === 'craft') h += craftHTML(f);
     else h += guideHTML();
@@ -346,20 +366,22 @@ const UI = (() => {
     h += '<div class="tabs sub">' + TECH_TABS.map(t => `<button class="${ui.techTab === t.id ? 'on' : ''}" data-act="techtab" data-tab="${t.id}">${t.name}</button>`).join('') + '</div>';
     const tab = TECH_TABS.find(t => t.id === ui.techTab);
     const ids = Object.keys(TECHS).filter(id => TECHS[id].tab === tab.id);
-    const NW = 150, NH = 58, CX = 182, CY = 76, PAD = 16;
-    const maxRow = Math.max(...ids.map(id => TECHS[id].row));
-    const width = PAD * 2 + tab.cols.length * CX, height = PAD + 22 + (maxRow + 1) * CY;
+    // vertical tree: tiers run top to bottom, each branch is a column
+    const NW = 116, NH = 62, CX = 122, CY = 84, LW = 62, HEAD = 30, PAD = 8;
+    const nBranch = Math.max(tab.branches.length, ...ids.map(id => TECHS[id].row + 1));
+    const width = LW + PAD + nBranch * CX, height = HEAD + tab.cols.length * CY + PAD;
     h += `<div class="treewrap"><div class="tree scroll"><div class="treeinner" style="width:${width}px;height:${height}px">`;
-    tab.cols.forEach((c, i) => { h += `<div class="colhead" style="left:${PAD + i * CX}px;width:${NW}px">${c}</div>`; });
+    tab.cols.forEach((c, i) => { h += `<div class="tierhead" style="top:${HEAD + i * CY}px;width:${LW - 8}px;height:${NH}px">${c}</div><div class="tierline" style="top:${HEAD + i * CY - 13}px;width:${width}px"></div>`; });
+    for (let i = 0; i < nBranch; i++) h += `<div class="colhead" style="left:${LW + PAD + i * CX}px;width:${NW}px">${tab.branches[i] || ''}</div>`;
     h += `<svg class="links" width="${width}" height="${height}">`;
-    const pos = id => [PAD + TECHS[id].col * CX, PAD + 22 + TECHS[id].row * CY];
+    const pos = id => [LW + PAD + TECHS[id].row * CX, HEAD + TECHS[id].col * CY];
     for (const id of ids) for (const r of TECHS[id].req || []) {
       if (TECHS[r].tab !== tab.id) continue;
       const [x1, y1] = pos(r), [x2, y2] = pos(id);
       let d;
-      if (y1 === y2) d = `M${x1 + NW},${y1 + NH / 2} L${x2},${y2 + NH / 2}`;
-      else if (x1 === x2) d = `M${x1 + NW / 2},${y1 + NH} L${x2 + NW / 2},${y2}`;
-      else d = `M${x1 + NW},${y1 + NH / 2} C${x1 + NW + 20},${y1 + NH / 2} ${x2 - 20},${y2 + NH / 2} ${x2},${y2 + NH / 2}`;
+      if (x1 === x2) d = `M${x1 + NW / 2},${y1 + NH} L${x2 + NW / 2},${y2}`;
+      else if (y1 === y2) d = `M${x1 + (x2 > x1 ? NW : 0)},${y1 + NH / 2} L${x2 + (x2 > x1 ? 0 : NW)},${y2 + NH / 2}`;
+      else d = `M${x1 + NW / 2},${y1 + NH} C${x1 + NW / 2},${y1 + NH + 22} ${x2 + NW / 2},${y2 - 22} ${x2 + NW / 2},${y2}`;
       h += `<path d="${d}" class="${G.techs[r] ? 'done' : ''}"/>`;
     }
     h += '</svg>';
@@ -457,7 +479,7 @@ const UI = (() => {
   // ---------- Market ----------
   function marketHTML() {
     const q = ui.mktQuery.trim().toLowerCase();
-    let h = `<div class="mktbar"><label class="search">${ic('search')}<input id="mkt-search" type="search" placeholder="Search goods" value="${tip(ui.mktQuery)}" autocomplete="off"></label>
+    let h = hqHTML('market') + `<div class="mktbar"><label class="search">${ic('search')}<input id="mkt-search" type="search" placeholder="Search goods" value="${tip(ui.mktQuery)}" autocomplete="off"></label>
       <div class="qtys">Amount ${[1, 10, 50, 100].map(n => `<button class="${ui.tradeQty === n ? 'on' : ''}" data-act="qty" data-q="${n}">${n}</button>`).join('')}</div></div>`;
     h += '<div class="scroll mtable"><table><tr><th>Goods</th><th>Have</th><th colspan="2">Sell price</th><th colspan="2">Buy price</th></tr>';
     let shown = 0;
@@ -477,7 +499,7 @@ const UI = (() => {
 
   // ---------- Army / defence / world ----------
   function armyHTML() {
-    let h = tabs([['army', ic('battle') + ' Army'], ['defense', ic('wall') + ' Defence'], ['map', ic('map') + ' World Map']], ui.armyTab, 'armytab');
+    let h = hqHTML('barracks') + tabs([['army', ic('battle') + ' Army'], ['defense', ic('wall') + ' Defence'], ['map', ic('map') + ' World Map']], ui.armyTab, 'armytab');
     if (ui.armyTab === 'army') h += armyTabHTML();
     else if (ui.armyTab === 'defense') h += defenseHTML();
     else h += worldHTML();
@@ -582,7 +604,7 @@ const UI = (() => {
   function expHTML() {
     const avail = availableWorkers();
     ui.expPeople = Math.max(1, Math.min(ui.expPeople, Math.max(1, avail)));
-    let h = '<div class="exps">';
+    let h = hqHTML('townhall') + '<div class="exps">';
     for (const t in EXPEDITIONS) {
       const e = EXPEDITIONS[t];
       h += `<button class="expcard ${ui.expType === t ? 'on' : ''}" data-act="exptype" data-t="${t}">
@@ -608,8 +630,9 @@ const UI = (() => {
   function helpHTML() {
     const row = (icon, text) => `<div class="hrow">${ic(icon, 'big')}<span>${text}</span></div>`;
     return `<div class="scroll guide">
-      ${row('map', 'Drag or WASD to move. Scroll to zoom.')}
-      ${row('house', 'Pick a building below, click inside the walls. Right-click to stop.')}
+      ${row('map', 'Drag or WASD to move. Scroll to zoom. Right-drag (or Q/E, R/F) to turn and tilt.')}
+      ${row('hammer', 'Build opens the building tray. Pick one, click inside the walls. Right-click to stop.')}
+      ${row('anvil', 'The tools at the bottom run the Forge, Market, Barracks and Town Hall.')}
       ${row('coin', 'Coins come from selling at the Market and from battle loot.')}
       ${row('furnace', 'Each refinery makes one material. Set how much it refines with its slider.')}
       ${row('battle', 'Mix unit types. Every class has a counter.')}
@@ -683,6 +706,8 @@ const UI = (() => {
       case 'place': startPlacing(d.type); break;
       case 'ore': ui.selected.ore = d.ore; break;
       case 'upgrade': Sim.upgradeBuilding(ui.selected); break;
+      case 'upgradehq': if (!Sim.upgradeBuilding(findBuilding(d.type))) toast('', 'bad', 'up'); break;
+      case 'buildtray': ui.buildOpen = !ui.buildOpen; if (!ui.buildOpen && ui.placing) stopPlacing(); break;
       case 'pause': ui.selected.paused = !ui.selected.paused; break;
       case 'demolish':
         if (ui.armed === 'demolish' + ui.selected.id) { Sim.demolish(ui.selected); ui.selected = null; ui.armed = null; Render.terrainDirty = true; }
@@ -782,7 +807,11 @@ const UI = (() => {
   return {
     ui, init, refreshAll, renderTop, renderAlert, renderBottom, renderSide, renderModal, renderTutorial, openModal, closeModal,
     toast, floatText, showIntro, gameOver, setHover, updateHoverPop, startPlacing, stopPlacing, tryPlace,
-    select(b) { ui.selected = b; Render.selected = b; ui.armed = null; renderSide(); },
+    select(b) {
+      if (b && BUILDINGS[b.type].unique) b = null;      // command-square buildings are run from the toolbar
+      ui.selected = b; Render.selected = b; ui.armed = null; renderSide();
+    },
+    closeBuild() { ui.buildOpen = false; renderBottom(); },
     isModalOpen() { return !!ui.modal || Battle.active() || !$('intro').classList.contains('hidden'); },
   };
 })();

@@ -31,75 +31,58 @@ const GFX = (() => {
       g.fillRect(x, y, cell, cell);
     }
   }
+  // Clean, low-contrast surfaces: a hint of pattern (boards, blocks,
+  // shingle rows) on flat, bright colour, like a tidy city builder.
   const TEX = {
-    ground: () => canvasTex('ground', 256, (g, s) => {
-      noiseFill(g, s, '#d8d8d8', 0.22, 1, 2);
-      for (let i = 0; i < 900; i++) {           // blade strokes
-        const x = rnd(i, 1, 2) * s, y = rnd(i, 2, 2) * s;
-        g.strokeStyle = rnd(i, 3, 2) < 0.5 ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.2)';
-        g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd(i, 4, 2) - 0.5) * 3, y - 3 - rnd(i, 5, 2) * 4); g.stroke();
-      }
-    }),
+    ground: () => canvasTex('ground', 128, (g, s) => noiseFill(g, s, '#f4f4f4', 0.035, 1, 16)),
     dirt: () => canvasTex('dirt', 128, (g, s) => {
-      noiseFill(g, s, '#b39465', 0.25, 3, 2);
-      for (let i = 0; i < 70; i++) { g.fillStyle = rnd(i, 1, 4) < 0.5 ? 'rgba(80,60,35,0.45)' : 'rgba(235,220,185,0.5)'; g.fillRect(rnd(i, 2, 4) * s, rnd(i, 3, 4) * s, 2 + rnd(i, 4, 4) * 2, 2); }
+      noiseFill(g, s, '#e3cc9c', 0.05, 3, 8);
+      for (let i = 0; i < 40; i++) { g.fillStyle = 'rgba(150,115,70,0.18)'; g.beginPath(); g.arc(rnd(i, 2, 4) * s, rnd(i, 3, 4) * s, 1.5 + rnd(i, 4, 4) * 2, 0, 6.3); g.fill(); }
     }),
     cobble: () => canvasTex('cobble', 256, (g, s) => {
-      g.fillStyle = '#6b665c'; g.fillRect(0, 0, s, s);
-      const n = 8, cs = s / n;
+      g.fillStyle = '#b9ae9c'; g.fillRect(0, 0, s, s);
+      const n = 4, cs = s / n;
       for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-        const ox = (y % 2) * cs / 2, v = rnd(x, y, 7);
-        const l = 150 + v * 45 | 0;
+        const ox = (y % 2) * cs / 2, l = 222 + rnd(x, y, 7) * 18 | 0;
         g.fillStyle = `rgb(${l},${l - 6},${l - 16})`;
-        g.beginPath(); g.roundRect((x * cs + ox + 2) % s, y * cs + 2, cs - 4, cs - 4, 5); g.fill();
-        g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect((x * cs + ox + 4) % s, y * cs + 4, cs - 10, 3);
+        g.beginPath(); g.roundRect((x * cs + ox + 4) % s, y * cs + 4, cs - 8, cs - 8, 10); g.fill();
+        if ((x * cs + ox + 4) % s + cs - 8 > s) { g.beginPath(); g.roundRect((x * cs + ox + 4) % s - s, y * cs + 4, cs - 8, cs - 8, 10); g.fill(); }
       }
     }),
     logs: () => canvasTex('logs', 128, (g, s) => {
-      const n = 6, h = s / n;
+      const n = 5, h = s / n;
       for (let i = 0; i < n; i++) {
         const grd = g.createLinearGradient(0, i * h, 0, (i + 1) * h);
-        grd.addColorStop(0, '#5a3a20'); grd.addColorStop(0.35, '#9a6a3c'); grd.addColorStop(0.7, '#7a5030'); grd.addColorStop(1, '#3e2814');
+        grd.addColorStop(0, '#9a6a40'); grd.addColorStop(0.45, '#c08a58'); grd.addColorStop(1, '#8a5c36');
         g.fillStyle = grd; g.fillRect(0, i * h, s, h);
-        for (let k = 0; k < 8; k++) { g.strokeStyle = 'rgba(40,25,10,0.35)'; g.beginPath(); const y = i * h + rnd(i, k, 9) * h; g.moveTo(0, y); g.lineTo(s, y + (rnd(k, i, 9) - 0.5) * 4); g.stroke(); }
       }
     }),
     planks: () => canvasTex('planks', 128, (g, s) => {
-      const n = 6, w = s / n;
+      const n = 5, w = s / n;
       for (let i = 0; i < n; i++) {
-        const l = 0.85 + rnd(i, 1, 11) * 0.3;
-        g.fillStyle = `rgb(${138 * l | 0},${92 * l | 0},${54 * l | 0})`; g.fillRect(i * w, 0, w, s);
-        g.fillStyle = 'rgba(30,18,8,0.55)'; g.fillRect(i * w, 0, 1.5, s);
-        for (let k = 0; k < 5; k++) { g.strokeStyle = 'rgba(60,35,15,0.3)'; g.beginPath(); const x = i * w + 3 + rnd(i, k, 12) * (w - 6); g.moveTo(x, 0); g.lineTo(x + (rnd(k, i, 12) - 0.5) * 3, s); g.stroke(); }
-        g.fillStyle = 'rgba(30,18,8,0.6)'; g.beginPath(); g.arc(i * w + w / 2, s * rnd(i, 2, 13), 1.6, 0, 6.3); g.fill();
+        const l = 0.95 + rnd(i, 1, 11) * 0.1;
+        g.fillStyle = `rgb(${200 * l | 0},${150 * l | 0},${98 * l | 0})`; g.fillRect(i * w, 0, w, s);
+        g.fillStyle = 'rgba(90,55,25,0.35)'; g.fillRect(i * w, 0, 2, s);
       }
     }),
-    plaster: () => canvasTex('plaster', 128, (g, s) => noiseFill(g, s, '#e4d8bd', 0.12, 21, 2)),
-    stone: () => canvasTex('stone', 256, (g, s) => bricks(g, s, [168, 160, 146], 22)),
-    darkstone: () => canvasTex('darkstone', 256, (g, s) => bricks(g, s, [96, 90, 86], 23)),
-    thatch: () => canvasTex('thatch', 128, (g, s) => {
-      g.fillStyle = '#b8903e'; g.fillRect(0, 0, s, s);
-      for (let i = 0; i < 700; i++) {
-        const x = rnd(i, 1, 31) * s, y = rnd(i, 2, 31) * s;
-        g.strokeStyle = ['#d9b25a', '#8a6a2a', '#c9a24c', '#a07c34'][i % 4];
-        g.lineWidth = 1.2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd(i, 3, 31) - 0.5) * 3, y + 10); g.stroke();
-      }
-      for (let y = 0; y < s; y += 16) { g.fillStyle = 'rgba(60,40,10,0.35)'; g.fillRect(0, y, s, 2); }
+    plaster: () => canvasTex('plaster', 64, (g, s) => noiseFill(g, s, '#f6eedc', 0.03, 21, 8)),
+    stone: () => canvasTex('stone', 128, (g, s) => bricks(g, s, [214, 206, 192], 22)),
+    darkstone: () => canvasTex('darkstone', 128, (g, s) => bricks(g, s, [140, 134, 128], 23)),
+    thatch: () => canvasTex('thatch', 64, (g, s) => rows(g, s, [226, 186, 98], 31, 0)),
+    tiles: () => canvasTex('tiles', 64, (g, s) => rows(g, s, [214, 98, 70], 41, 1)),
+    slate: () => canvasTex('slate', 64, (g, s) => rows(g, s, [98, 124, 156], 42, 1)),
+    darkroof: () => canvasTex('darkroof', 64, (g, s) => rows(g, s, [132, 92, 70], 43, 1)),
+    field: () => canvasTex('field', 64, (g, s) => {
+      g.fillStyle = '#b08458'; g.fillRect(0, 0, s, s);
+      for (let y = 0; y < s; y += 16) { g.fillStyle = '#946a42'; g.fillRect(0, y, s, 6); }
     }),
-    tiles: () => canvasTex('tiles', 128, (g, s) => shingles(g, s, [168, 66, 46], 41)),
-    slate: () => canvasTex('slate', 128, (g, s) => shingles(g, s, [74, 86, 104], 42)),
-    darkroof: () => canvasTex('darkroof', 128, (g, s) => shingles(g, s, [70, 52, 40], 43)),
-    field: () => canvasTex('field', 128, (g, s) => {
-      g.fillStyle = '#7a5a34'; g.fillRect(0, 0, s, s);
-      for (let y = 0; y < s; y += 16) { g.fillStyle = '#5e4426'; g.fillRect(0, y, s, 6); g.fillStyle = 'rgba(255,230,180,0.12)'; g.fillRect(0, y + 8, s, 2); }
-    }),
-    water: () => canvasTex('water', 256, (g, s) => {
-      noiseFill(g, s, '#ffffff', 0.15, 51, 4);
-      for (let i = 0; i < 140; i++) { g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 1.2; const x = rnd(i, 1, 52) * s, y = rnd(i, 2, 52) * s; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + 6, y - 2, x + 12, y); g.stroke(); }
+    water: () => canvasTex('water', 128, (g, s) => {
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, s, s);
+      for (let i = 0; i < 30; i++) { g.strokeStyle = 'rgba(255,255,255,0.6)'; g.fillStyle = 'rgba(200,230,255,0.5)'; const x = rnd(i, 1, 52) * s, y = rnd(i, 2, 52) * s; g.fillRect(x, y, 10, 2); }
     }),
     cloth: (col) => canvasTex('cloth' + col, 64, (g, s) => {
       g.fillStyle = typeof col === 'number' ? '#' + col.toString(16).padStart(6, '0') : col; g.fillRect(0, 0, s, s);
-      g.fillStyle = 'rgba(255,255,255,0.85)';
+      g.fillStyle = 'rgba(255,255,255,0.9)';
       for (let x = 0; x < s; x += 16) g.fillRect(x, 0, 8, s);
     }),
     mist: () => canvasTex('mist', 128, (g, s) => {
@@ -108,35 +91,35 @@ const GFX = (() => {
       g.fillStyle = grd; g.fillRect(0, 0, s, s);
     }, false),
   };
+  // big tidy blocks with soft mortar lines
   function bricks(g, s, [r, gg, b], seed) {
-    g.fillStyle = `rgb(${r * 0.55 | 0},${gg * 0.55 | 0},${b * 0.55 | 0})`; g.fillRect(0, 0, s, s);
-    const rows = 10, h = s / rows;
-    for (let y = 0; y < rows; y++) {
-      let x = (y % 2) * -14;
+    g.fillStyle = `rgb(${r * 0.84 | 0},${gg * 0.84 | 0},${b * 0.84 | 0})`; g.fillRect(0, 0, s, s);
+    const rowsN = 4, h = s / rowsN;
+    for (let y = 0; y < rowsN; y++) {
+      let x = (y % 2) * -20;
       while (x < s) {
-        const w = 22 + rnd(x, y, seed) * 20, l = 0.82 + rnd(y, x, seed) * 0.3;
-        g.fillStyle = `rgb(${r * l | 0},${gg * l | 0},${b * l | 0})`;
-        g.beginPath(); g.roundRect(x + 1.5, y * h + 1.5, w - 3, h - 3, 3); g.fill();
-        g.fillStyle = 'rgba(255,255,255,0.1)'; g.fillRect(x + 3, y * h + 2.5, w - 7, 2);
+        const w = 34 + rnd(x, y, seed) * 16, l = 0.95 + rnd(y, x, seed) * 0.08;
+        g.fillStyle = `rgb(${Math.min(255, r * l) | 0},${Math.min(255, gg * l) | 0},${Math.min(255, b * l) | 0})`;
+        g.beginPath(); g.roundRect(x + 2, y * h + 2, w - 4, h - 4, 4); g.fill();
         x += w;
       }
     }
   }
-  function shingles(g, s, [r, gg, b], seed) {
-    g.fillStyle = `rgb(${r * 0.5 | 0},${gg * 0.5 | 0},${b * 0.5 | 0})`; g.fillRect(0, 0, s, s);
-    const rows = 8, h = s / rows, w = s / 6;
-    for (let y = 0; y < rows; y++) for (let x = -1; x < 7; x++) {
-      const l = 0.8 + rnd(x, y, seed) * 0.35, ox = (y % 2) * w / 2;
-      g.fillStyle = `rgb(${r * l | 0},${gg * l | 0},${b * l | 0})`;
-      g.beginPath(); g.roundRect(x * w + ox + 1, y * h, w - 2, h + 3, [0, 0, 6, 6]); g.fill();
-      g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(x * w + ox + 1, y * h + h, w - 2, 2);
+  // roof rows: soft bands with a darker lip under each course
+  function rows(g, s, [r, gg, b], seed, scallop) {
+    g.fillStyle = `rgb(${r},${gg},${b})`; g.fillRect(0, 0, s, s);
+    const n = 4, h = s / n;
+    for (let y = 0; y < n; y++) {
+      g.fillStyle = `rgba(0,0,0,0.13)`; g.fillRect(0, y * h + h - 3, s, 3);
+      g.fillStyle = `rgba(255,255,255,0.1)`; g.fillRect(0, y * h, s, 3);
+      if (scallop) for (let x = (y % 2) * 8; x < s; x += 16) { g.fillStyle = 'rgba(0,0,0,0.08)'; g.fillRect(x, y * h, 1.5, h); }
     }
   }
 
   // ---------- materials ----------
   function mat(key, opts = {}) {
     if (matCache[key]) return matCache[key];
-    const m = new T.MeshStandardMaterial(Object.assign({ roughness: 0.9, metalness: 0 }, opts));
+    const m = new T.MeshStandardMaterial(Object.assign({ roughness: 0.85, metalness: 0, flatShading: true }, opts));
     matCache[key] = m;
     return m;
   }
@@ -150,16 +133,16 @@ const GFX = (() => {
     tiles: () => mat('tiles', { map: TEX.tiles() }),
     slate: () => mat('slate', { map: TEX.slate() }),
     darkroof: () => mat('darkroof', { map: TEX.darkroof() }),
-    cobble: () => mat('cobble', { map: TEX.cobble(), color: 0xc9c0b0 }),
+    cobble: () => mat('cobble', { map: TEX.cobble() }),
     dirt: () => mat('dirt', { map: TEX.dirt() }),
     field: () => mat('field', { map: TEX.field() }),
-    wood: () => mat('wood', { color: 0x6b4a2a }),
-    darkwood: () => mat('darkwood', { color: 0x3e2a18 }),
-    beam: () => mat('beam', { color: 0x4a3020 }),
-    iron: () => mat('iron', { color: 0x5a5e66, metalness: 0.7, roughness: 0.45 }),
+    wood: () => mat('wood', { color: 0x9a6a3e }),
+    darkwood: () => mat('darkwood', { color: 0x5e4028 }),
+    beam: () => mat('beam', { color: 0x6a4630 }),
+    iron: () => mat('iron', { color: 0x6a707a, metalness: 0.5, roughness: 0.5 }),
     gold: () => mat('gold', { color: 0xd4a017, metalness: 0.8, roughness: 0.35 }),
     // windows glow at night: emissiveIntensity is driven by Render
-    window: () => mat('window', { color: 0x2a3540, emissive: 0xffc35a, emissiveIntensity: 0, roughness: 0.2, metalness: 0.3 }),
+    window: () => mat('window', { color: 0x3a5a78, emissive: 0xffc35a, emissiveIntensity: 0, roughness: 0.25, metalness: 0.2 }),
     fire: () => mat('fire', { color: 0xff7a2a, emissive: 0xff6a1a, emissiveIntensity: 2.2 }),
     torch: () => mat('torch', { color: 0xffb347, emissive: 0xffa040, emissiveIntensity: 2.5 }),
     crucible: () => mat('crucible', { color: 0x5fd6d0, emissive: 0x3fe0d8, emissiveIntensity: 2 }),
@@ -201,20 +184,29 @@ const GFX = (() => {
     g.addGroup(slopeCount, 6, 1);
     return g;
   }
-  // Gable roof as two meshes (slopes + gable ends) so each can be baked with its material
+  // Gable roof: two thick slabs meeting at a ridge cap, with solid gable
+  // ends in the wall material. Ridge runs along X (rotated by ry).
   function roof(parent, w, d, h, roofMat, endMat, x, y, z, ry = 0) {
-    const g = gableGeo(w, d, h);
-    const split = (start, count) => {
-      const out = new T.BufferGeometry();
-      for (const name of ['position', 'normal', 'uv']) {
-        const at = g.attributes[name];
-        out.setAttribute(name, new T.BufferAttribute(at.array.slice(start * at.itemSize, (start + count) * at.itemSize), at.itemSize));
-      }
-      return out;
-    };
-    const [g0, g1] = g.groups;
-    add(parent, split(g0.start, g0.count), roofMat, x, y, z, { ry });
-    add(parent, split(g1.start, g1.count), endMat, x, y, z, { ry });
+    const g = new T.Group();
+    const hd = d / 2, L = Math.hypot(hd, h), ang = Math.atan2(h, hd), th = Math.min(0.05, 0.03 + w * 0.01);
+    for (const sgn of [1, -1]) {
+      const slab = new T.Mesh(boxGeo(w, th, L + th), roofMat);
+      slab.position.set(0, h / 2 + th * 0.35, sgn * hd / 2);
+      slab.rotation.x = sgn * ang;
+      slab.castShadow = slab.receiveShadow = true;
+      g.add(slab);
+    }
+    const cap = new T.Mesh(boxGeo(w + 0.02, th * 1.2, th * 2.2), roofMat);
+    cap.position.set(0, h + th * 0.5, 0); cap.castShadow = true; g.add(cap);
+    // gable ends sit just inside the overhang
+    const inset = Math.min(0.06, w * 0.08);
+    const tri = new T.Shape(); tri.moveTo(-hd + 0.03, 0); tri.lineTo(hd - 0.03, 0); tri.lineTo(0, h - 0.02); tri.lineTo(-hd + 0.03, 0);
+    const end = new T.ExtrudeGeometry(tri, { depth: w - inset * 2, bevelEnabled: false });
+    end.rotateY(Math.PI / 2); end.translate(-(w - inset * 2) / 2, 0, 0);
+    const em = new T.Mesh(end, endMat); em.castShadow = em.receiveShadow = true; g.add(em);
+    g.position.set(x, y, z); g.rotation.y = ry;
+    parent.add(g);
+    return g;
   }
   function pyramidGeo(w, d, h) {
     const g = new T.ConeGeometry(Math.SQRT1_2, h, 4, 1);
@@ -335,25 +327,25 @@ const GFX = (() => {
     const trunk = new T.CylinderGeometry(0.035, 0.055, 0.4, 6);
     const pine = merge([
       { geo: trunk, matrix: M4(0, 0.2, 0), color: 0x5a3a20 },
-      { geo: new T.ConeGeometry(0.34, 0.55, 8), matrix: M4(0, 0.5, 0), color: 0x2a5d32 },
-      { geo: new T.ConeGeometry(0.27, 0.48, 8), matrix: M4(0, 0.78, 0), color: 0x316b3a },
-      { geo: new T.ConeGeometry(0.19, 0.42, 8), matrix: M4(0, 1.04, 0), color: 0x3a7a42 },
-      { geo: new T.ConeGeometry(0.1, 0.3, 7), matrix: M4(0, 1.27, 0), color: 0x468a4c },
+      { geo: new T.ConeGeometry(0.34, 0.55, 8), matrix: M4(0, 0.5, 0), color: 0x2f7a40 },
+      { geo: new T.ConeGeometry(0.27, 0.48, 8), matrix: M4(0, 0.78, 0), color: 0x378a48 },
+      { geo: new T.ConeGeometry(0.19, 0.42, 8), matrix: M4(0, 1.04, 0), color: 0x41994f },
+      { geo: new T.ConeGeometry(0.1, 0.3, 7), matrix: M4(0, 1.27, 0), color: 0x4fa85a },
     ]);
     const blob = new T.IcosahedronGeometry(0.22, 1);
     const oak = merge([
       { geo: new T.CylinderGeometry(0.05, 0.08, 0.6, 6), matrix: M4(0, 0.3, 0), color: 0x5a3b22 },
-      { geo: blob, matrix: M4(0, 0.78, 0, 1.45), color: 0x3f7a32 },
-      { geo: blob, matrix: M4(-0.2, 0.68, 0.08, 1.05), color: 0x4a8a38 },
-      { geo: blob, matrix: M4(0.2, 0.7, -0.06, 1.1), color: 0x37702e },
-      { geo: blob, matrix: M4(0.04, 1.02, 0.05, 1.0), color: 0x5a9a42 },
-      { geo: blob, matrix: M4(-0.08, 0.66, -0.2, 0.95), color: 0x427e34 },
+      { geo: blob, matrix: M4(0, 0.78, 0, 1.45), color: 0x4f9a3a },
+      { geo: blob, matrix: M4(-0.2, 0.68, 0.08, 1.05), color: 0x5aab42 },
+      { geo: blob, matrix: M4(0.2, 0.7, -0.06, 1.1), color: 0x468e36 },
+      { geo: blob, matrix: M4(0.04, 1.02, 0.05, 1.0), color: 0x6cba4e },
+      { geo: blob, matrix: M4(-0.08, 0.66, -0.2, 0.95), color: 0x52a03e },
     ]);
     const birch = merge([
       { geo: new T.CylinderGeometry(0.03, 0.045, 0.75, 6), matrix: M4(0, 0.37, 0), color: 0xe8e2d4 },
-      { geo: blob, matrix: M4(0, 0.86, 0, 0.95, 1.25), color: 0x7aa83e },
-      { geo: blob, matrix: M4(-0.1, 0.72, 0.05, 0.8), color: 0x8cba4a },
-      { geo: blob, matrix: M4(0.1, 1.0, -0.04, 0.7), color: 0x9cc858 },
+      { geo: blob, matrix: M4(0, 0.86, 0, 0.95, 1.25), color: 0x92c24a },
+      { geo: blob, matrix: M4(-0.1, 0.72, 0.05, 0.8), color: 0xa6d05a },
+      { geo: blob, matrix: M4(0.1, 1.0, -0.04, 0.7), color: 0xb6dc68 },
     ]);
     const bush = merge([
       { geo: blob, matrix: M4(0, 0.1, 0, 0.7, 0.55), color: 0x3f7a32 },

@@ -226,11 +226,12 @@ const WEAPONS = {
 //  Tech tree.  tab / col / row position nodes in the tree view.
 // ------------------------------------------------------------
 const TECH_TABS = [
-  { id: 'melee',    name: 'Melee', cols: ['Wood', 'Bronze', 'Iron', 'Steel', 'Masterwork'] },
-  { id: 'ranged',   name: 'Ranged', cols: ['Wood', 'Bronze', 'Iron', 'Steel'] },
-  { id: 'refining', name: 'Refining',       cols: ['Tier I', 'Tier II', 'Tier III', 'Tier IV'] },
-  { id: 'economy',  name: 'Economy',        cols: ['Basic', 'Advanced', 'Expert'] },
-  { id: 'military', name: 'Military', cols: ['Basic', 'Advanced', 'Expert'] },
+  // cols = tiers (top to bottom), branches = the lines of research (left to right)
+  { id: 'melee',    name: 'Melee',    cols: ['Wood', 'Bronze', 'Iron', 'Steel', 'Master'], branches: ['Swords', 'Axes', 'Maces', 'Spears', 'Cavalry', 'Javelins'] },
+  { id: 'ranged',   name: 'Ranged',   cols: ['Wood', 'Bronze', 'Iron', 'Steel'], branches: ['Slings', 'Bows', 'Crossbows'] },
+  { id: 'refining', name: 'Refining', cols: ['Tier I', 'Tier II', 'Tier III', 'Tier IV'], branches: ['Refineries', 'Mining'] },
+  { id: 'economy',  name: 'Economy',  cols: ['Basic', 'Advanced', 'Expert'], branches: ['Gathering', 'Building', 'Trade', 'Horses'] },
+  { id: 'military', name: 'Military', cols: ['Basic', 'Advanced', 'Expert'], branches: ['Walls', 'Towers', 'Drill', 'Armour', 'Supply'] },
 ];
 
 const TECHS = {

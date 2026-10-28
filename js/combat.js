@@ -9,7 +9,7 @@ const Combat = (() => {
   function stacksOf(side, tag) {
     return Object.entries(side.units)
       .filter(([, n]) => n >= 1)
-      .map(([id, n]) => ({ id, w: WEAPONS[id], n, start: n, side: tag, pending: 0 }));
+      .map(([id, n], i) => ({ id, i, w: WEAPONS[id], n, start: n, side: tag, pending: 0 }));
   }
   const alive = s => s.n > 0.05;
   const isRanged = s => s.w.cls === 'ranged';
@@ -42,7 +42,8 @@ const Combat = (() => {
       const dmg = raw * (1 - red) * defSide.dmgTaken * (0.85 + rng() * 0.3);
       const kills = dmg / t.w.hp;
       t.pending += kills;
-      if (events) events.push({ a: att.label, aSide: attSide.tag, t: t, kills });
+      // who killed whom, so the battle replay can show every death being dealt
+      if (events && kills > 0) events.push({ as: attSide.tag, ai: att.i === undefined ? -1 : att.i, ti: t.i, kills, mode });
     }
   }
   function applyPending(stacks) {
@@ -60,7 +61,7 @@ const Combat = (() => {
     // each snapshot keeps per-stack counts so the battle can be replayed as an animation
     const snap = (kind, events) => {
       if (!detailed) return;
-      rounds.push({ kind, a: total(sa), d: total(sd), sa: sa.map(s => s.n), sd: sd.map(s => s.n), towers: !!(A.towers || D.towers) });
+      rounds.push({ kind, a: total(sa), d: total(sd), sa: sa.map(s => s.n), sd: sd.map(s => s.n), towers: !!(A.towers || D.towers), ev: events || [] });
     };
     snap('deploy');
     const towerA = { w: { cls: 'ranged', pierce: 0.3, unit: 'Watchtowers' }, n: A.towers, label: 'Watchtowers' };
@@ -80,7 +81,7 @@ const Combat = (() => {
         for (const s of own) {
           if (!alive(s) || vol(s) < v) continue;
           const p = s.w.atk * os.atkMult * (s.w.cls === 'javelin' ? 1.8 : 1);
-          strike({ w: s.w, n: s.n, label: s.w.unit }, p, os, enemy, es, 'volley', rng, ev);
+          strike({ w: s.w, n: s.n, i: s.i, label: s.w.unit }, p, os, enemy, es, 'volley', rng, ev);
         }
       }
       if (A.towers) strike(towerA, 1, A, sd, D, 'volley', rng, ev);
@@ -100,7 +101,7 @@ const Combat = (() => {
         // spearmen brace and strike first
         for (const [own, enemy, os, es] of [[sa, sd, A, D], [sd, sa, D, A]])
           for (const s of own) if (alive(s) && s.w.cls === 'spear')
-            strike({ w: s.w, n: s.n, label: s.w.unit }, s.w.atk * os.atkMult, os, enemy, es, 'melee', rng, ev);
+            strike({ w: s.w, n: s.n, i: s.i, label: s.w.unit }, s.w.atk * os.atkMult, os, enemy, es, 'melee', rng, ev);
         applyPending(sa); applyPending(sd);
       }
       for (const [own, enemy, os, es] of [[sa, sd, A, D], [sd, sa, D, A]]) {
@@ -108,7 +109,7 @@ const Combat = (() => {
         for (const s of own) {
           if (!alive(s)) continue;
           if (r === 1 && s.w.cls === 'spear') continue;
-          const att = { w: s.w, n: s.n, label: s.w.unit };
+          const att = { w: s.w, n: s.n, i: s.i, label: s.w.unit };
           let p = s.w.atk * os.atkMult;
           if (s.w.cls === 'ranged') {
             if (frontAlive) { strike(att, p * 0.6, os, enemy, es, 'volley', rng, ev); continue; }

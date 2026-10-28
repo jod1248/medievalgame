@@ -10,19 +10,20 @@ Send 50 villagers into the woods to gather wood. They return with 100 wood, enou
 From there you grow the town, build refineries, forge an army, fight off raiders, and conquer the neighbouring kingdoms.
 
 ## Features
-- **True 3D town (Three.js):**
-  - Real-time shadows, a moving sun, and day/night with glowing windows, torches and lamp-lit streets.
-  - Swaying forests, clouds that cast shadows, birds and fireflies.
-  - Detailed buildings, from log cottages to stone townhouses, all modelled per level.
-  - Fog banks roll along the misty hills at the edge of the world.
-  - Drag to pan, right-drag or Q/E to rotate and tilt, scroll to zoom.
+- **3D town in a clean city-builder style (Three.js):**
+  - Bright low-poly look with soft shadows, a moving sun, and day/night with glowing windows and lamp-lit streets.
+  - Swaying forests, clouds, birds and fireflies; fog banks roll along the misty hills at the edge of the world.
+  - Settlers arrive through the gates in family groups, carrying bundles or pulling handcarts, and walk to their new homes.
+  - Camera: drag or WASD to pan, scroll to zoom. Right-drag (or Q/E, R/F) turns the view up to 15° either way and tilts it from almost level to almost straight down.
+- **Command square** in the back-right corner of town: Town Hall, Forge, Barracks and Marketplace round a fountain. They are scenery; you run them from the tool dock at the bottom (Expeditions, Tech Tree, Forge, Market, Army, World Map), and each tool shows its building's level and upgrade.
+- **Build tool:** opens a tray of buildings above the dock. Picking one shows its stats before you place it.
 - **Walls** ring the town, with gates and corner towers. They upgrade from palisade to stone and grow when you conquer land.
-- **Click a building** to open its panel with actions, stats and a next-level preview. Picking a building to place shows its stats before you build.
-- **Tech tree** at the Forge, with a research queue for anything you've unlocked.
+- **Click a building** you placed to see its stats, next-level preview, upgrade and controls.
+- **Vertical tech tree** (tiers top to bottom, one column per branch) with a research queue for anything you've unlocked.
 - **One refinery per material** (Sawmill, Charcoal Kiln, Iron Smelter, Bronze Foundry, Brass Works, Steelworks, Crucible). Each has a slider for how much it refines and four tiers.
 - **Barracks:** recruit soldiers from the weapons in your armoury. Each recruit costs a one-time fee and takes time to train, longer for harder weapons.
 - **One marketplace** with search. There are no wages and no passive income.
-- **3D battles** with every soldier on the field: armies march in, archers and javelins loose volleys, the lines charge and clash, and the loser routs, in front of your town walls or the enemy's castle.
+- **3D battles, soldier by soldier:** every figure is one fighter (up to 1,500 a side), equipped by weapon and material: helmets, shields, capes, quivers, banners and barded horses. Every death in the simulation is dealt on screen by a real attacker of the right type: arrows, bolts, sling stones and javelins that strike their target, tower shots from the walls, or a blow from the enemy they were fighting. Fallen soldiers stay on the field with arrows in them. Live unit counts per type match the simulation exactly. Drag to turn the camera, scroll to zoom in.
 - **3D world map** with 14 cities, from timber villages to walled towns and great castles, linked by roads across an island realm.
 - **Generated medieval music** (toggle in the top right). The war drums swell when raiders approach or battle begins.
 - Tutorial, custom SVG icons, and autosave to `localStorage`.
@@ -33,7 +34,7 @@ From there you grow the town, build refineries, forge an army, fight off raiders
 | `js/data.js` | All game data: resources, buildings, recipes, weapons, tech tree, kingdoms, objectives |
 | `js/state.js` | Game state, map generation, save/load, helpers |
 | `js/sim.js` | Economy, population, research, forge, refineries, expeditions, raids, campaigns, market |
-| `js/combat.js` | Battle simulation (volleys, melee rounds, class bonuses, armour, morale) |
+| `js/combat.js` | Battle simulation (volleys, melee rounds, class bonuses, armour, morale); records who killed whom each round |
 | `js/lib/three.min.js` | Three.js r158 (MIT, see `three.LICENSE`) |
 | `js/gfx.js` | Procedural textures, materials, geometry helpers, mesh baking, foliage sway |
 | `js/models.js` | 3D models for every building, level and wall piece |
@@ -41,6 +42,6 @@ From there you grow the town, build refineries, forge an army, fight off raiders
 | `js/worldmap.js` | 3D world map |
 | `js/music.js` | Generated Web Audio score |
 | `js/ui.js` | HTML panels, tutorial, tech tree, market, modals |
-| `js/battle.js` | 3D battle scene that replays a simulated battle with every soldier |
+| `js/battle.js` | 3D battle scene: replays the simulation soldier by soldier, assigning every death to a visible attacker |
 | `js/icons.js` | Custom SVG icon set |
 | `js/main.js` | Game loop and input |

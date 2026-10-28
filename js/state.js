@@ -5,9 +5,12 @@
 const MAP_W = 44, MAP_H = 44;
 const T_GRASS = 0, T_FOREST = 1, T_WATER = 2, T_ROAD = 3, T_PLAZA = 4, T_SAND = 5;
 const TOWN_CENTER = [20, 22];
+// compact command square in the back-right corner of the town
+const PLAZA = { x0: 25, y0: 12, x1: 30, y1: 17 };
+const PLAZA_MID = [(PLAZA.x0 + PLAZA.x1 + 1) / 2, (PLAZA.y0 + PLAZA.y1 + 1) / 2];
 const START_TERRITORY = 11, MAX_TERRITORY = 21;
 const SAVE_KEY = 'emberfall_save_v1';
-const SAVE_VERSION = 3;   // saves from older versions can't be loaded
+const SAVE_VERSION = 4;   // saves from older versions can't be loaded
 
 let G = null;   // the one and only game state
 
@@ -62,11 +65,16 @@ function generateMap() {
   for (let x = 0; x <= 24; x++) set(x, 22, T_ROAD);
   for (let y = 0; y < MAP_H; y++) set(17, y, T_ROAD);
   for (let y = 14; y <= 30; y++) set(9, y, T_ROAD);
-  // Command center plaza
-  for (let y = 16; y <= 27; y++) for (let x = 24; x <= 31; x++) set(x, y, T_PLAZA);
-  // Clear the town core of trees
-  for (let y = 12; y <= 32; y++) for (let x = 8; x <= 31; x++)
-    if (get(x, y) === T_FOREST && Math.max(Math.abs(x - 20), Math.abs(y - 22)) < 7) set(x, y, T_GRASS);
+  for (let x = 18; x < PLAZA.x0; x++) set(x, 14, T_ROAD);          // lane to the command square
+  // Command square
+  for (let y = PLAZA.y0; y <= PLAZA.y1; y++) for (let x = PLAZA.x0; x <= PLAZA.x1; x++) set(x, y, T_PLAZA);
+  // Clear the town core and the square's surroundings of trees
+  for (let y = 10; y <= 32; y++) for (let x = 8; x <= 32; x++) {
+    if (get(x, y) !== T_FOREST) continue;
+    const core = Math.max(Math.abs(x - 20), Math.abs(y - 22)) < 7;
+    const square = x >= PLAZA.x0 - 2 && x <= PLAZA.x1 + 1 && y >= PLAZA.y0 - 1 && y <= PLAZA.y1 + 2;
+    if (core || square) set(x, y, T_GRASS);
+  }
   return m;
 }
 
@@ -97,11 +105,11 @@ function newGame() {
   for (const id in TECHS) if (TECHS[id].known) G.techs[id] = true;
   G.map = generateMap();
 
-  // Command center
-  placeBuilding('forge', 25, 17, true);
-  placeBuilding('market', 28, 17, true);
-  placeBuilding('townhall', 28, 21, true);
-  placeBuilding('barracks', 25, 25, true);
+  // Command square: four buildings round a fountain
+  placeBuilding('townhall', PLAZA.x0, PLAZA.y0, true);
+  placeBuilding('forge', PLAZA.x1 - 1, PLAZA.y0, true);
+  placeBuilding('barracks', PLAZA.x0, PLAZA.y1 - 1, true);
+  placeBuilding('market', PLAZA.x1 - 1, PLAZA.y1 - 1, true);
   // Twenty houses for two hundred people
   for (const x of [10, 12, 14, 19, 21, 23]) { placeBuilding('house', x, 21, true); placeBuilding('house', x, 23, true); }
   for (const y of [16, 18, 26, 28]) { placeBuilding('house', 16, y, true); placeBuilding('house', 18, y, true); }

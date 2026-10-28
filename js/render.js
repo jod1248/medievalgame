@@ -14,8 +14,11 @@ const Render = (() => {
   let time = 0;
   const api = { terrainDirty: true, hover: null, ghost: null, pulse: null, selected: null };
 
-  // camera: target point + yaw/pitch/distance, eased toward `want`
-  const cam = { x: 22, z: 21, yaw: Math.PI / 4, pitch: 0.92, dist: 24 };
+  // camera: target point + yaw/pitch/distance, eased toward `want`.
+  // It faces north (toward -z); it can swing 15° either side and tilt
+  // from just above the ground to almost straight down.
+  const YAW_LIMIT = 0.26, PITCH_MIN = 0.1, PITCH_MAX = 1.5;
+  const cam = { x: 22, z: 21, yaw: 0, pitch: 0.85, dist: 24 };
   const want = { ...cam };
 
   // scene parts
@@ -54,19 +57,21 @@ const Render = (() => {
     if (e > 0) h = Math.pow(Math.min(1, e / 12), 1.4) * (1.5 + smoothNoise(x + 200, z + 200, 7, 91) * 6);
     return h - waterAt(x, z) * 0.45;
   }
-  const FOG_COL = new T.Color('#c6d2d4');
+  const FOG_COL = new T.Color('#cfe2ee');
+  const GC = { water: new T.Color('#7d9a62'), sand: new T.Color('#ecd9a0'), forest: new T.Color('#5f9e3e'), forest2: new T.Color('#74ad48'),
+    grass: new T.Color('#7cbf4e'), grass2: new T.Color('#a2d062'), hill: new T.Color('#6ea84a') };
   function groundColor(x, z, out) {
     const t = tileAt(Math.floor(x), Math.floor(z));
-    const n = smoothNoise(x, z, 5, 21), n2 = smoothNoise(x, z, 2.3, 22);
+    const n = smoothNoise(x, z, 7, 21), n2 = smoothNoise(x, z, 3, 22);
     const c = new T.Color();
-    if (t === T_WATER || waterAt(x, z) > 0) c.set('#6b6a4a');
-    else if (t === T_SAND) c.set('#d6c48a');
-    else if (t === T_FOREST) c.set('#4f7c35').lerp(new T.Color('#6a9a44'), n);
-    else c.set('#5c9140').lerp(new T.Color('#8cba55'), n * 0.75 + n2 * 0.25);
+    if (t === T_WATER || waterAt(x, z) > 0) c.copy(GC.water);
+    else if (t === T_SAND) c.copy(GC.sand);
+    else if (t === T_FOREST) c.copy(GC.forest).lerp(GC.forest2, n);
+    else c.copy(GC.grass).lerp(GC.grass2, n * 0.7 + n2 * 0.15);
     const e = edgeDist(x, z);
-    if (e > 0) {   // wilder hills outside the realm, dissolving into the fog
-      c.lerp(new T.Color('#5f7f48'), Math.min(1, e / 6) * 0.5);
-      c.lerp(new T.Color('#c6d2d4'), Math.min(1, Math.pow(e / 20, 1.3)));
+    if (e > 0) {   // hills outside the realm, dissolving into the fog
+      c.lerp(GC.hill, Math.min(1, e / 6) * 0.5);
+      c.lerp(FOG_COL, Math.min(1, Math.pow(e / 20, 1.3)));
     }
     out.copy(c);
   }
@@ -88,9 +93,7 @@ const Render = (() => {
     }
     geo.setAttribute('color', new T.BufferAttribute(col, 3));
     geo.computeVertexNormals();
-    const tex = GFX.TEX.ground();
-    tex.repeat.set(size / 3, size / 3);
-    const m = new T.MeshStandardMaterial({ vertexColors: true, map: tex, roughness: 1 });
+    const m = new T.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
     groundMesh = new T.Mesh(geo, m);
     groundMesh.receiveShadow = true;
     worldGroup.add(groundMesh);
@@ -123,7 +126,7 @@ const Render = (() => {
     decoGroup.add(GFX.bake(curb));
     if (waterMesh) worldGroup.remove(waterMesh);
     const wtex = GFX.TEX.water(); wtex.repeat.set(4, 4);
-    waterMesh = new T.Mesh(quads(waterQ, -0.12, 0.1), new T.MeshStandardMaterial({ color: 0x3f7fb5, map: wtex, transparent: true, opacity: 0.86, roughness: 0.12, metalness: 0.25 }));
+    waterMesh = new T.Mesh(quads(waterQ, -0.12, 0.1), new T.MeshStandardMaterial({ color: 0x4f9fd8, map: wtex, transparent: true, opacity: 0.88, roughness: 0.1, metalness: 0.1 }));
     worldGroup.add(waterMesh);
 
     // grass tufts, flowers, rocks (instanced)
@@ -141,7 +144,7 @@ const Render = (() => {
     const tuftGeo = GFX.merge([0, 1, 2].map(k => ({
       geo: new T.ConeGeometry(0.012, 0.1 + k * 0.02, 3),
       matrix: new T.Matrix4().compose(new T.Vector3((k - 1) * 0.02, 0.05 + k * 0.01, (k % 2) * 0.015), new T.Quaternion().setFromEuler(new T.Euler((k - 1) * 0.3, 0, (k - 1) * 0.35)), new T.Vector3(1, 1, 1)),
-      color: [0x4f8a34, 0x6aa443, 0x86b852][k],
+      color: [0x5f9e3a, 0x7cb84a, 0x9ccc5a][k],
     })));
     decoGroup.add(instanced(tuftGeo, GFX.swayMaterial('tuft', { flatShading: false }), tufts.map(([x, z, s]) => [x, 0, z, s, hash2(x * 7, z * 7, 1) * 6]), false));
     const fl = instanced(new T.SphereGeometry(0.02, 5, 4), new T.MeshStandardMaterial({ roughness: 0.8 }), flowers.map(([x, z]) => [x, 0.05, z, 1, 0]), false);
@@ -160,43 +163,56 @@ const Render = (() => {
     return im;
   }
 
-  // ---------- plaza props: fountain, lamps, carts, banners ----------
+  // ---------- command square props: fountain, lamps, cart, banners ----------
   let propGroup = null;
   function buildProps() {
-    if (propGroup) return;
+    if (propGroup) { worldGroup.remove(propGroup); disposeGroup(propGroup); propGroup = null; }
     const T3 = THREE, g = new T3.Group();
     const M = GFX.M;
-    // fountain
-    const fx = 26.5, fz = 22;
-    GFX.add(g, new T3.CylinderGeometry(0.55, 0.6, 0.18, 20), M.stone(), fx, 0.12, fz);
-    const water = GFX.add(g, new T3.CylinderGeometry(0.48, 0.48, 0.02, 20), GFX.mat('fountainwater', { color: 0x4f8fc0, roughness: 0.1, metalness: 0.2 }), fx, 0.2, fz);
-    GFX.add(g, new T3.CylinderGeometry(0.06, 0.09, 0.45, 10), M.stone(), fx, 0.4, fz);
-    GFX.add(g, new T3.CylinderGeometry(0.22, 0.12, 0.06, 14), M.stone(), fx, 0.62, fz);
-    const spray = new T3.Group(); spray.userData.dynamic = true; g.add(spray);
-    const dropGeo = new T3.SphereGeometry(0.018, 5, 4), dropM = GFX.mat('drop', { color: 0xcfe8ff, roughness: 0.1 });
-    for (let k = 0; k < 18; k++) { const d = new T3.Mesh(dropGeo, dropM); d.userData.k = k; spray.add(d); }
-    Models.anim(g, t => spray.children.forEach(d => {
-      const k = d.userData.k, u = (t * 0.9 + k / 18) % 1, a = k / 18 * Math.PI * 2;
-      d.position.set(fx + Math.cos(a) * 0.32 * u, 0.66 + Math.sin(u * Math.PI) * 0.22 - u * 0.4, fz + Math.sin(a) * 0.32 * u);
-    }));
-    // lamp posts
-    const lamps = [[24.4, 19.5], [30.6, 19.5], [24.4, 24], [30.6, 24], [27.5, 27.6], [27.2, 16.3]];
-    for (const [x, z] of lamps) {
-      GFX.add(g, new T3.CylinderGeometry(0.025, 0.035, 0.7, 8), M.iron(), x, 0.35, z);
-      GFX.add(g, new T3.BoxGeometry(0.1, 0.12, 0.1), M.window(), x, 0.76, z, { noShadow: true });
-      GFX.add(g, GFX.pyramidGeo(0.14, 0.14, 0.08), M.iron(), x, 0.82, z);
-      Models.torch && (g.userData.lights = g.userData.lights || []).push({ x, y: 0.76, z, color: 0xffc06a });
+    const [fx, fz] = PLAZA_MID;
+    // fountain: stone basin, rippling pool, two-tier column with falling water
+    GFX.add(g, new T3.CylinderGeometry(0.62, 0.68, 0.2, 24), M.stone(), fx, 0.1, fz);
+    GFX.add(g, new T3.CylinderGeometry(0.66, 0.66, 0.04, 24), M.darkstone(), fx, 0.21, fz);
+    const pool = GFX.add(g, new T3.CylinderGeometry(0.55, 0.55, 0.02, 24), GFX.mat('fountainwater', { color: 0x5aa8d8, roughness: 0.08, metalness: 0.1, transparent: true, opacity: 0.85 }), fx, 0.19, fz, { dynamic: true, noShadow: true });
+    GFX.add(g, new T3.CylinderGeometry(0.07, 0.1, 0.42, 10), M.stone(), fx, 0.4, fz);
+    GFX.add(g, new T3.CylinderGeometry(0.24, 0.14, 0.07, 16), M.stone(), fx, 0.62, fz);
+    GFX.add(g, new T3.CylinderGeometry(0.03, 0.05, 0.16, 8), M.stone(), fx, 0.72, fz);
+    GFX.add(g, new T3.SphereGeometry(0.05, 10, 8), M.gold(), fx, 0.83, fz);
+    const water = GFX.mat('fountainfall', { color: 0xbfe3ff, roughness: 0.05, transparent: true, opacity: 0.55 });
+    const fall = GFX.add(g, new T3.CylinderGeometry(0.2, 0.32, 0.4, 16, 1, true), water, fx, 0.42, fz, { dynamic: true, noShadow: true });
+    Models.anim(g, t => {
+      pool.scale.set(1 + Math.sin(t * 3) * 0.01, 1, 1 + Math.cos(t * 3) * 0.01);
+      fall.scale.set(1 + Math.sin(t * 9) * 0.04, 1, 1 + Math.sin(t * 9) * 0.04);
+      fall.material.opacity = 0.45 + Math.sin(t * 7) * 0.08;
+    });
+    // lamp posts at the corners of the fountain court
+    for (const [x, z] of [[fx - 1.1, fz - 1.1], [fx + 1.1, fz - 1.1], [fx - 1.1, fz + 1.1], [fx + 1.1, fz + 1.1]]) {
+      GFX.add(g, new T3.CylinderGeometry(0.03, 0.04, 0.72, 8), M.iron(), x, 0.36, z);
+      GFX.add(g, new T3.BoxGeometry(0.1, 0.12, 0.1), M.window(), x, 0.78, z, { noShadow: true });
+      GFX.add(g, GFX.pyramidGeo(0.15, 0.15, 0.08), M.iron(), x, 0.84, z);
+      (g.userData.lights = g.userData.lights || []).push({ x, y: 0.78, z, color: 0xffc06a });
     }
-    // carts, crates, barrels, banners
+    // benches, flower tubs, a cart by the lane, banners at the entrance
+    for (const [x, z, r] of [[fx, fz - 1.25, 0], [fx, fz + 1.25, 0], [fx - 1.25, fz, Math.PI / 2], [fx + 1.25, fz, Math.PI / 2]]) {
+      const b = new T3.Group();
+      GFX.block(b, 0.4, 0.03, 0.12, M.planks(), 0, 0.1, 0);
+      for (const dx of [-0.16, 0.16]) GFX.block(b, 0.03, 0.1, 0.1, M.darkwood(), dx, 0, 0);
+      b.position.set(x, 0, z); b.rotation.y = r; g.add(b);
+    }
+    for (const [x, z] of [[PLAZA.x0 + 0.25, fz - 0.6], [PLAZA.x0 + 0.25, fz + 0.6]]) {
+      GFX.add(g, new T3.CylinderGeometry(0.13, 0.11, 0.14, 12), M.planks(), x, 0.07, z);
+      for (let k = 0; k < 5; k++) GFX.add(g, new T3.SphereGeometry(0.045, 6, 5), M.color([0xe85d75, 0xf2d14b, 0xffffff, 0xc77dde, 0xf28a3a][k]), x + Math.cos(k * 1.3) * 0.06, 0.17, z + Math.sin(k * 1.3) * 0.06);
+      GFX.add(g, new T3.SphereGeometry(0.09, 8, 6), M.color(0x4f9a3a), x, 0.15, z);
+    }
     const cart = new T3.Group();
     GFX.block(cart, 0.5, 0.14, 0.3, M.planks(), 0, 0.12, 0);
     for (const dz of [-0.17, 0.17]) GFX.add(cart, new T3.CylinderGeometry(0.11, 0.11, 0.03, 12), M.darkwood(), 0, 0.11, dz, { rx: Math.PI / 2 });
     GFX.add(cart, GFX.boxGeo(0.5, 0.02, 0.02), M.wood(), -0.45, 0.12, 0.08); GFX.add(cart, GFX.boxGeo(0.5, 0.02, 0.02), M.wood(), -0.45, 0.12, -0.08);
-    for (let k = 0; k < 4; k++) GFX.add(cart, new T3.CylinderGeometry(0.04, 0.04, 0.12, 8), M.thatch(), -0.1 + k * 0.08, 0.32, 0, { rz: Math.PI / 2 });
-    cart.position.set(30.5, 0, 17.6); cart.rotation.y = 0.4; g.add(cart);
-    for (const [x, z] of [[30.4, 21.2], [24.6, 17.2], [24.8, 26.8]]) { Models.crate(g, x, z, 0.16); Models.crate(g, x + 0.18, z + 0.05, 0.12); Models.barrel(g, x - 0.05, z + 0.22); }
-    Models.flag(g, 24.2, 0, 22, 0x2c4f8a, 0.8);
-    Models.flag(g, 24.2, 0, 22.9, 0xb5462e, 0.8);
+    for (let k = 0; k < 3; k++) GFX.add(cart, new T3.CylinderGeometry(0.05, 0.05, 0.14, 8), M.thatch(), -0.1 + k * 0.1, 0.33, 0, { rz: Math.PI / 2 });
+    cart.position.set(PLAZA.x0 - 0.6, 0, PLAZA.y0 + 1.4); cart.rotation.y = -0.3; g.add(cart);
+    Models.crate(g, PLAZA.x1 + 0.7, fz - 0.4, 0.16); Models.crate(g, PLAZA.x1 + 0.75, fz - 0.15, 0.12); Models.barrel(g, PLAZA.x1 + 0.6, fz + 0.2);
+    Models.flag(g, PLAZA.x0 + 0.1, 0, fz - 1.05, 0x2c4f8a, 0.8);
+    Models.flag(g, PLAZA.x0 + 0.1, 0, fz + 0.95, 0xb5462e, 0.8);
     const anims = g.userData.anim || [], lights = g.userData.lights || [];
     propGroup = GFX.bake(g);
     propGroup.userData = { anim: anims, lights };
@@ -308,17 +324,31 @@ const Render = (() => {
   }
 
   // ---------- people (instanced) ----------
-  const MAX_PEOPLE = 360;
+  const MAX_PEOPLE = 520, MAX_CARTS = 40;
   function makePeople() {
     const p = GFX.person();
     const body = new T.InstancedMesh(p.body, new T.MeshStandardMaterial({ roughness: 0.9 }), MAX_PEOPLE);
     const head = new T.InstancedMesh(p.head, GFX.mat('skin', { color: 0xf0c9a0 }), MAX_PEOPLE);
     const legs = new T.InstancedMesh(p.leg, GFX.mat('legs', { color: 0x3a2a1e }), MAX_PEOPLE * 2);
     const tool = new T.InstancedMesh(new T.BoxGeometry(0.012, 0.22, 0.012).translate(0, 0.11, 0), GFX.M.iron(), MAX_PEOPLE);
-    const load = new T.InstancedMesh(new T.BoxGeometry(0.1, 0.05, 0.06), new T.MeshStandardMaterial({ roughness: 0.9 }), MAX_PEOPLE);
-    for (const m of [body, head, legs, tool, load]) { m.castShadow = true; m.frustumCulled = false; worldGroup.add(m); }
+    const load = new T.InstancedMesh(GFX.merge([
+      { geo: new T.SphereGeometry(0.055, 8, 6), matrix: new T.Matrix4().compose(new T.Vector3(-0.02, 0, 0), new T.Quaternion(), new T.Vector3(1, 0.8, 1.1)), color: 0xffffff },
+      { geo: new T.BoxGeometry(0.012, 0.012, 0.12), matrix: new T.Matrix4().makeTranslation(-0.02, 0.04, 0), color: 0x5a3a20 },
+    ]), new T.MeshStandardMaterial({ roughness: 0.9, vertexColors: true }), MAX_PEOPLE);
+    // handcart, pulled from the front (+z)
+    const cartGeo = GFX.merge([
+      { geo: new T.BoxGeometry(0.16, 0.06, 0.2), matrix: new T.Matrix4().makeTranslation(0, 0.1, 0), color: 0x9a6a3a },
+      { geo: new T.BoxGeometry(0.13, 0.08, 0.16), matrix: new T.Matrix4().makeTranslation(0, 0.16, -0.01), color: 0xd8c8a0 },
+      { geo: new T.CylinderGeometry(0.06, 0.06, 0.02, 10).rotateZ(Math.PI / 2), matrix: new T.Matrix4().makeTranslation(0.09, 0.06, 0), color: 0x4a3020 },
+      { geo: new T.CylinderGeometry(0.06, 0.06, 0.02, 10).rotateZ(Math.PI / 2), matrix: new T.Matrix4().makeTranslation(-0.09, 0.06, 0), color: 0x4a3020 },
+      { geo: new T.BoxGeometry(0.012, 0.012, 0.2), matrix: new T.Matrix4().makeTranslation(0.05, 0.13, 0.18), color: 0x6b4a2a },
+      { geo: new T.BoxGeometry(0.012, 0.012, 0.2), matrix: new T.Matrix4().makeTranslation(-0.05, 0.13, 0.18), color: 0x6b4a2a },
+    ]);
+    const cart = new T.InstancedMesh(cartGeo, new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }), MAX_CARTS);
+    for (const m of [body, head, legs, tool, load, cart]) { m.castShadow = true; m.frustumCulled = false; worldGroup.add(m); }
     body.setColorAt(0, new T.Color()); load.setColorAt(0, new T.Color());
-    people = { body, head, legs, tool, load, n: 0 };
+    cart.count = 0;
+    people = { body, head, legs, tool, load, cart, n: 0 };
   }
   const _m4 = new T.Matrix4(), _q = new T.Quaternion(), _q2 = new T.Quaternion(), _v = new T.Vector3(), _s = new T.Vector3(), _e = new T.Euler(), _c = new T.Color();
   const ZERO = new T.Matrix4().makeScale(0, 0, 0);
@@ -327,8 +357,9 @@ const Render = (() => {
     if (P.n >= MAX_PEOPLE) return;
     const i = P.n++;
     const y = heightAt(x, z) + (moving ? Math.abs(Math.sin(phase)) * 0.012 : 0);
+    const sc = opts.scale || 1;
     _q.setFromEuler(_e.set(0, rot, 0));
-    _m4.compose(_v.set(x, y, z), _q, _s.set(1, 1, 1));
+    _m4.compose(_v.set(x, y, z), _q, _s.set(sc, sc, sc));
     P.body.setMatrixAt(i, _m4);
     P.head.setMatrixAt(i, _m4);
     P.body.setColorAt(i, _c.set(color));
@@ -336,14 +367,15 @@ const Render = (() => {
       const swing = moving ? Math.sin(phase + k * Math.PI) * 0.5 : 0;
       const off = k ? 0.022 : -0.022;
       _q2.setFromEuler(_e.set(swing, rot, 0, 'YXZ'));
-      P.legs.setMatrixAt(i * 2 + k, _m4.compose(_v.set(x + Math.cos(rot) * off, y + 0.08, z - Math.sin(rot) * off), _q2, _s.set(1, 1, 1)));
+      P.legs.setMatrixAt(i * 2 + k, _m4.compose(_v.set(x + Math.cos(rot) * off * sc, y + 0.08 * sc, z - Math.sin(rot) * off * sc), _q2, _s.set(sc, sc, sc)));
     }
     if (opts.tool) {
       _q2.setFromEuler(_e.set(opts.toolAngle || 0.15, rot, 0, 'YXZ'));
       P.tool.setMatrixAt(i, _m4.compose(_v.set(x + Math.cos(rot) * 0.06, y + 0.1, z - Math.sin(rot) * 0.06), _q2, _s.set(1, opts.toolLen || 1, 1)));
     } else P.tool.setMatrixAt(i, ZERO);
     if (opts.load) {
-      P.load.setMatrixAt(i, _m4.compose(_v.set(x, y + 0.34, z), _q, _s.set(1, 1, 1)));
+      // bundle carried on the back
+      P.load.setMatrixAt(i, _m4.compose(_v.set(x - Math.sin(rot) * 0.05, y + 0.2, z - Math.cos(rot) * 0.05), _q, _s.set(1, 1, 1)));
       P.load.setColorAt(i, _c.set(opts.load));
     } else P.load.setMatrixAt(i, ZERO);
   }
@@ -383,6 +415,51 @@ const Render = (() => {
     }
   }
 
+  // ---------- settlers arriving: they come in through a gate and walk to a house ----------
+  let arrivals = [], lastPop = null;
+  const GATES = [[[-3, 22.5], [10, 22.5]], [[17.5, -3], [17.5, 12]], [[17.5, MAP_H + 3], [17.5, 32]]];
+  const LOADS = [0x8a5a32, 0xd8c8a0, 0x6a7a4a, 0xa0703e, 0xc9a04a];
+  function spawnArrivals(n) {
+    const homes = G.buildings.filter(b => b.type === 'house' && b.built >= 1);
+    if (!homes.length) return;
+    homes.sort((a, b) => b.id - a.id);                      // newest houses fill first
+    let left = Math.min(n, 40);
+    while (left > 0 && arrivals.length < 140) {
+      const size = Math.min(left, 2 + Math.floor(Math.random() * 3));
+      left -= size;
+      const gate = GATES[Math.floor(Math.random() * GATES.length)];
+      const home = homes[Math.floor(Math.pow(Math.random(), 2) * Math.min(homes.length, 8))];
+      const door = [home.x + 0.36, home.y + 0.95];
+      const path = [gate[0], gate[1], [TOWN_CENTER[0] - 2.5, 22.5], [17.5, door[1] > 22 ? door[1] + 0.3 : 22.5], [door[0], door[1] + 0.3], door]
+        .filter((p, i, a) => i === 0 || Math.hypot(p[0] - a[i - 1][0], p[1] - a[i - 1][1]) > 0.2);
+      const cart = Math.random() < 0.35;
+      for (let k = 0; k < size; k++) {
+        const kid = k > 0 && Math.random() < 0.35;
+        arrivals.push({
+          path, seg: 0, x: path[0][0], y: path[0][1], rot: 0, ph: Math.random() * 6, delay: k * 0.55, kid,
+          c: CLOTHES[Math.floor(Math.random() * CLOTHES.length)], load: kid ? null : LOADS[Math.floor(Math.random() * LOADS.length)],
+          cart: cart && k === 0, sp: 0.75 + Math.random() * 0.15, home: home.id,
+        });
+      }
+    }
+  }
+  function updateArrivals(dt) {
+    if (lastPop === null) lastPop = G.pop;
+    if (G.pop > lastPop) spawnArrivals(G.pop - lastPop);
+    lastPop = G.pop;
+    for (const a of arrivals) {
+      if (a.delay > 0) { a.delay -= dt; continue; }
+      const tgt = a.path[a.seg + 1];
+      if (!tgt) { a.done = true; continue; }
+      const dx = tgt[0] - a.x, dy = tgt[1] - a.y, d = Math.hypot(dx, dy), st = a.sp * dt;
+      a.ph += dt * 11;
+      if (d <= st) { a.x = tgt[0]; a.y = tgt[1]; a.seg++; continue; }
+      a.x += dx / d * st; a.y += dy / d * st;
+      a.rot = Math.atan2(dx, dy);
+    }
+    arrivals = arrivals.filter(a => !a.done && G.buildings.some(b => b.id === a.home));
+  }
+
   function expeditionTarget(e) {
     if (expTargets[e.id]) return expTargets[e.id];
     const want = e.type === 'wood' || e.type === 'food' ? T_FOREST : e.type === 'stone' ? T_SAND : -2;
@@ -406,6 +483,18 @@ const Render = (() => {
 
   function drawPeople() {
     for (const w of walkers) putPerson(w.x, w.y, w.rot, w.ph, w.moving, w.c);
+    let carts = 0;
+    for (const a of arrivals) {
+      if (a.delay > 0) continue;
+      putPerson(a.x, a.y, a.rot, a.ph, true, a.c, { load: a.load, scale: a.kid ? 0.72 : 1 });
+      if (a.cart && carts < MAX_CARTS) {
+        // handcart pulled behind
+        const bx = a.x - Math.sin(a.rot) * 0.32, bz = a.y - Math.cos(a.rot) * 0.32;
+        _q.setFromEuler(_e.set(0, a.rot, 0));
+        people.cart.setMatrixAt(carts++, _m4.compose(_v.set(bx, heightAt(bx, bz) + Math.abs(Math.sin(a.ph)) * 0.008, bz), _q, _s.set(1, 1, 1)));
+      }
+    }
+    people.cart.count = carts; people.cart.instanceMatrix.needsUpdate = true;
     const home = [TOWN_CENTER[0] + 1, TOWN_CENTER[1]];
     for (const e of G.expeditions) {
       const p = 1 - e.t / e.total, tgt = expeditionTarget(e);
@@ -543,10 +632,13 @@ const Render = (() => {
       f.visible = day > 0.5;
       f.children.forEach((bird, k) => bird.children.forEach(w => { w.rotation.x = w.userData.side * Math.sin(time * 9 + k) * 0.6; }));
     }
+    const cp = camera.position;
     for (const m of mists) {
       const b = m.userData.base;
       m.position.x = b.x + Math.sin(time * 0.07 + m.userData.ph) * 1.5;
       m.position.z = b.z + Math.cos(time * 0.05 + m.userData.ph) * 1.2;
+      // never let the camera sit inside a fog bank
+      m.visible = Math.hypot(cp.x - m.position.x, cp.z - m.position.z) > m.scale.x * 1.3 + 2;
     }
     const night = 1 - day;
     let i = 0;
@@ -616,15 +708,15 @@ const Render = (() => {
     const dir = new T.Vector3(-Math.cos(a) * 0.8, Math.max(0.15, Math.sin(a)), 0.45).normalize();
     sun.position.set(cam.x + dir.x * 40, dir.y * 40, cam.z + dir.z * 40);
     sun.target.position.set(cam.x, 0, cam.z);
-    sun.intensity = 2.6 * day;
-    sun.color.set(0xfff1d6).lerp(_tmp.set(0xff9a5a), twi * 0.6);
+    sun.intensity = 2.3 * day;
+    sun.color.set(0xfff4e0).lerp(_tmp.set(0xffa266), twi * 0.55);
     moon.position.set(cam.x + 20, 30, cam.z - 15);
     moon.target.position.set(cam.x, 0, cam.z);
     moon.intensity = 0.55 * night;
-    hemi.intensity = 0.35 + 0.65 * day;
-    hemi.color.set(0x2a3a6a).lerp(_tmp.set(0xcfe6ff), day);
-    hemi.groundColor.set(0x1a2018).lerp(_tmp.set(0x5a6a3a), day);
-    _sky.set(0x0c1428).lerp(_tmp.set(0xb7d0dc), day).lerp(_tmp.set(0xe0a07a), twi * 0.35);
+    hemi.intensity = 0.45 + 0.85 * day;
+    hemi.color.set(0x34477a).lerp(_tmp.set(0xe2f0ff), day);
+    hemi.groundColor.set(0x1e2620).lerp(_tmp.set(0x7a8a52), day);
+    _sky.set(0x101a34).lerp(_tmp.set(0xcfe2ee), day).lerp(_tmp.set(0xf0b088), twi * 0.3);
     scene.background = _sky;
     scene.fog.color.copy(_sky);
     GFX.M.window().emissiveIntensity = 0.15 + night * 1.8;
@@ -647,7 +739,8 @@ const Render = (() => {
     const k = 1 - Math.exp(-dt * 10);
     for (const key of ['x', 'z', 'yaw', 'pitch', 'dist']) cam[key] += (want[key] - cam[key]) * k;
     const cp = Math.cos(cam.pitch);
-    camera.position.set(cam.x + Math.sin(cam.yaw) * cp * cam.dist, Math.sin(cam.pitch) * cam.dist, cam.z + Math.cos(cam.yaw) * cp * cam.dist);
+    const px = cam.x + Math.sin(cam.yaw) * cp * cam.dist, pz = cam.z + Math.cos(cam.yaw) * cp * cam.dist;
+    camera.position.set(px, Math.max(Math.sin(cam.pitch) * cam.dist, heightAt(px, pz) + 0.6), pz);
     camera.lookAt(cam.x, 0, cam.z);
     scene.fog.near = cam.dist * 1.15;
     scene.fog.far = cam.dist * 3.2 + 20;
@@ -675,8 +768,8 @@ const Render = (() => {
     want.x += (ax * rx + ay * fx) * sp; want.z += (ax * rz + ay * fz) * sp;
     clampCam();
   }
-  function rotateBy(a) { want.yaw += a; }
-  function tiltBy(a) { want.pitch = Math.max(0.45, Math.min(1.35, want.pitch + a)); }
+  function rotateBy(a) { want.yaw = Math.max(-YAW_LIMIT, Math.min(YAW_LIMIT, want.yaw + a)); }
+  function tiltBy(a) { want.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, want.pitch + a)); }
   function zoomAt(sx, sy, factor) {
     const before = groundPoint(sx, sy);
     const nd = Math.max(6, Math.min(60, want.dist / factor));
@@ -700,12 +793,14 @@ const Render = (() => {
   function pick(sx, sy) {
     raycaster.setFromCamera(ndc(sx, sy), camera);
     const hits = raycaster.intersectObjects(buildingRoot.children, true);
+    // the command-square buildings are scenery; their tools live in the bottom bar
+    const usable = b => b && !BUILDINGS[b.type].unique ? b : null;
     for (const h of hits) {
       const id = h.object.userData.bid;
-      if (id !== undefined) return G.buildings.find(b => b.id === id) || null;
+      if (id !== undefined) return usable(G.buildings.find(b => b.id === id));
     }
     const [tx, ty] = screenToTile(sx, sy);
-    return buildingAt(tx, ty);
+    return usable(buildingAt(tx, ty));
   }
 
   // ---------- setup ----------
@@ -716,7 +811,7 @@ const Render = (() => {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = T.PCFSoftShadowMap;
     renderer.toneMapping = T.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMappingExposure = 1.12;
     renderer.outputColorSpace = T.SRGBColorSpace;
     scene = new T.Scene();
     scene.fog = new T.Fog(0xb7d0dc, 30, 90);
@@ -736,7 +831,7 @@ const Render = (() => {
     ring = makeRing(); pulseRing = makeRing();
     resize();
     window.addEventListener('resize', resize);
-    centerOn(22, 22);
+    centerOn(21, 22);
     want.dist = cam.dist = 26;
   }
   function resize() {
@@ -767,6 +862,7 @@ const Render = (() => {
     syncBuildings();
     updateCamera(dt);
     updateWalkers(dt * Math.min(G.paused ? 0 : G.speed, 2) || 0);
+    updateArrivals(dt * Math.min(G.paused ? 0 : G.speed, 3) || 0);
     animateBuildings(dt);
     drawPeople();
     updateParticles(dt);
@@ -781,6 +877,6 @@ const Render = (() => {
 
   return Object.assign(api, {
     init, frame, resize, pick, screenToTile, centerOn, clampCam, zoomAt, dragStart, dragMove, panKeys, rotateBy, tiltBy,
-    daylight, dayPhase, heightAt, cam, want, resetWalkers: () => { walkers = []; },
+    daylight, dayPhase, heightAt, cam, want, resetWalkers: () => { walkers = []; arrivals = []; lastPop = null; },
   });
 })();

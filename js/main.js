@@ -26,7 +26,7 @@ const Main = (() => {
     Render.terrainDirty = true;
     Render.fullRebuild = true;
     Render.resetWalkers();
-    Render.centerOn(22, 22);
+    Render.centerOn(21, 22);
     G.paused = false;
     G.inBattle = false;
     UI.refreshAll();
@@ -49,7 +49,7 @@ const Main = (() => {
       if (autosave > 30) { autosave = 0; saveGame(); }
       Music.update();
     }
-    if (G) Render.frame(dt);
+    if (G && !Battle.active()) Render.frame(dt);     // the battle covers the whole screen
     requestAnimationFrame(loop);
   }
 
@@ -57,8 +57,10 @@ const Main = (() => {
     const ax = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
     const ay = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
     if (ax || ay) Render.panKeys(ax, ay, dt);
-    if (keys.KeyQ) Render.rotateBy(-1.6 * dt);
-    if (keys.KeyE) Render.rotateBy(1.6 * dt);
+    if (keys.KeyQ) Render.rotateBy(-1.2 * dt);
+    if (keys.KeyE) Render.rotateBy(1.2 * dt);
+    if (keys.KeyR) Render.tiltBy(1.2 * dt);
+    if (keys.KeyF) Render.tiltBy(-1.2 * dt);
   }
 
   function canvasPos(e) {
@@ -130,6 +132,7 @@ const Main = (() => {
       if (e.code === 'Escape') {
         if (UI.ui.placing) UI.stopPlacing();
         else if (UI.ui.modal) UI.closeModal();
+        else if (UI.ui.buildOpen) UI.closeBuild();
         else UI.select(null);
       }
       if (e.code === 'Space') { G.paused = !G.paused; e.preventDefault(); UI.renderTop(); }
