@@ -299,7 +299,7 @@ const Battle = (() => {
         moving: 0, fight: false, strikeT: -9, shotT: -9, drawT: -9, shotKind: '', fallT: 0, fallen: 0, fallAxis: 'z', fallSgn: 1,
         cheer: Math.random() * 6, bearer: false, settled: false, mat: new T.Matrix4(), look: Math.random(),
       };
-      s.sx = s.x;
+      s.sx = s.x; s.vx = 0; s.vz = 0; s.wantFace = s.face; s.flinchT = -9;
       list.push(s);
       extent = Math.max(extent, Math.abs(hx));
       return s;
@@ -679,14 +679,12 @@ const Battle = (() => {
       }
     }
   }
+  // ask to head for a point; motion() turns this into eased movement
   function moveTo(s, tx, tz, speed, dt, stopAt = 0.02) {
     const dx = tx - s.x, dz = tz - s.z, d = Math.hypot(dx, dz);
-    if (d <= stopAt) { s.moving = 0; return d; }
-    const m = Math.min(d - stopAt * 0.5, speed * dt);
-    s.x += dx / d * m; s.z += dz / d * m;
-    s.moving = speed > 2.6 ? 2 : 1;
-    s.ph += dt * (s.cav ? 15 : speed > 1.4 ? 12 : 9);
-    s.face = Math.atan2(-dz, dx);
+    if (d <= stopAt) return d;
+    const sp = Math.min(speed, (d - stopAt) * 5);          // slow down on arrival
+    s.tvx = dx / d * sp; s.tvz = dz / d * sp; s.moved = true;
     return d;
   }
 
@@ -698,70 +696,9 @@ const Battle = (() => {
     const ended = cur.steps[cur.steps.length - 1].done;
     buildGrids();
     for (const s of cur.soldiers) {
-      if (!s.alive) { s.fallen = Math.min(1, (cur.t - s.fallT) / (s.cav ? 0.7 : 0.5)); continue; }
-      // a doomed fighter falls when his killer's blow (or shot) lands
-      const dm = s.doom;
-      if (dm && cur.t >= dm.t) {
-        if (dm.kind === 'shot') { if (cur.t >= dm.t + 0.15) kill(s, dm.by); }
-        else if (s.dieAt !== undefined) { if (cur.t >= s.dieAt) kill(s, dm.by); }
-        else {
-          const k = dm.by;
-          const close = k && k.alive && Math.hypot(k.x - s.x, k.z - s.z) <= reach(k) + 0.3;
-          if (close) { k.strikeT = cur.t; s.dieAt = cur.t + 0.2; sparkAt((s.x + k.x) / 2, 0.45, (s.z + k.z) / 2); }
-          else if (!k || !k.alive || cur.t > dm.t + 3) s.dieAt = cur.t;
-        }
-        if (!s.alive) continue;
-      }
-      s.fight = false;
-      if (kind === 'deploy') {
-        const u = clamp((cur.t - cur.step.start) / (cur.step.dur * 0.9), 0, 1);
-        // march in step to the start line
-        s.x = s.sx + (s.hx - s.sx) * (1 - Math.pow(1 - u, 1.6)); s.z = s.hz;
-        s.moving = u < 1 && s.sx !== s.hx ? 1 : 0; s.ph += dt * 9; s.face = s.dir > 0 ? 0 : Math.PI;
-        continue;
-      }
-      const fleeing = kind === 'rout' && s.side === loser;
-      if (fleeing) {
-        const chaser = dm && dm.by && dm.by.alive;
-        moveTo(s, s.x - s.dir * 6, s.z + (s.look - 0.5) * 2, s.cav ? 3.2 : chaser ? 1.55 : 1.9, dt);
-        continue;
-      }
-      // targets: the men I'm fated to kill, the man fated to kill me, else the nearest enemy
-      let target = null;
-      while (s.kills.length && (!s.kills[0].alive || (s.kills[0].doom && s.kills[0].doom.by !== s))) s.kills.shift();
-      if (s.kills.length) target = s.kills[0];
-      else if (dm && dm.kind === 'melee' && dm.by && dm.by.alive) target = dm.by;
-      const shooterHolds = s.cls === 'ranged' && !target;
-      if (kind === 'volley' || shooterHolds || (ended && s.side !== loser && !target)) {
-        s.moving = 0;
-        if (kind !== 'volley' && !shooterHolds) s.ph += dt * 6;
-        if (s.cls === 'ranged') s.face = s.dir > 0 ? 0 : Math.PI;
-        else if (!ended) s.face = s.dir > 0 ? 0 : Math.PI;
-        continue;
-      }
-      if (!target) {
-        if (!s.foe || !s.foe.alive || cur.t > s.search) { s.foe = searchEnemy(s); s.search = cur.t + 0.3 + Math.random() * 0.3; }
-        target = s.foe;
-      }
-      const charging = kind === 'charge';
-      if (target) {
-        const dx = target.x - s.x, dz = target.z - s.z, d = Math.hypot(dx, dz), rr = reach(s);
-        if (d > rr + 0.03) {
-          // keep the line until close, then close in on the man
-          const tz = d > 2.6 ? s.z + dz * 0.12 : target.z - dz / d * rr;
-          const tx = target.x - dx / d * rr;
-          const spd = s.cav ? (charging ? 3.8 : 2.4) : (charging ? 1.8 : 1.25);
-          moveTo(s, tx, tz, spd, dt, 0.01);
-          if (s.cav && charging && Math.random() < dt * 6) dustAt(s.x, s.z, 1);
-        } else {
-          s.moving = 0; s.fight = true;
-          s.face = Math.atan2(-dz, dx);
-          s.sw += dt * (5 + (s.i % 5) * 0.4);
-          if (Math.random() < dt * 0.25) sparkAt(s.x + dx / 2, 0.45, s.z + dz / 2, 2);
-        }
-      } else {
-        moveTo(s, s.dir * 0.5, s.z, s.cav ? 2.4 : 1.2, dt, 0.3);
-      }
+      if (!s.alive) { s.fallen = Math.min(1, (cur.t - s.fallT) / 1.1); continue; }
+      think(s, dt, kind, loser, ended);
+      if (s.alive && kind !== 'deploy') motion(s, dt);
     }
     if (kind !== 'deploy' && kind !== 'volley') separate();
     updateProjectiles();
@@ -778,6 +715,92 @@ const Battle = (() => {
       if (!pending || cur.t > cur.total + 4) cur.endT = cur.t + 1.2;
     }
     if (cur.t >= cur.endT && !cur.finished) { cur.finished = true; showResult(); }
+  }
+
+  // what one fighter does this frame: fall, hold, shoot, close in or fight
+  function think(s, dt, kind, loser, ended) {
+    // a doomed fighter falls when his killer's blow (or shot) lands
+    const dm = s.doom;
+    if (dm && cur.t >= dm.t) {
+      if (dm.kind === 'shot') { if (cur.t >= dm.t + 0.15) kill(s, dm.by); }
+      else if (s.dieAt !== undefined) { if (cur.t >= s.dieAt) kill(s, dm.by); }
+      else {
+        const k = dm.by;
+        const close = k && k.alive && Math.hypot(k.x - s.x, k.z - s.z) <= reach(k) + 0.3;
+        if (close) { k.strikeT = cur.t; s.dieAt = cur.t + 0.2; sparkAt((s.x + k.x) / 2, 0.45, (s.z + k.z) / 2); }
+        else if (!k || !k.alive || cur.t > dm.t + 3) s.dieAt = cur.t;
+      }
+      if (!s.alive) return;
+    }
+    s.fight = false;
+    if (kind === 'deploy') {
+      const u = clamp((cur.t - cur.step.start) / (cur.step.dur * 0.9), 0, 1);
+      // march in step to the start line
+      s.x = s.sx + (s.hx - s.sx) * (1 - Math.pow(1 - u, 1.6)); s.z = s.hz;
+      s.moving = u < 1 && s.sx !== s.hx ? 1 : 0; s.ph += dt * 9; s.face = s.wantFace = s.dir > 0 ? 0 : Math.PI;
+      return;
+    }
+    const fleeing = kind === 'rout' && s.side === loser;
+    if (fleeing) {
+      const chaser = dm && dm.by && dm.by.alive;
+      moveTo(s, s.x - s.dir * 6, s.z + (s.look - 0.5) * 2, s.cav ? 3.2 : chaser ? 1.55 : 1.9, dt);
+      return;
+    }
+    // targets: the men I'm fated to kill, the man fated to kill me, else the nearest enemy
+    let target = null;
+    while (s.kills.length && (!s.kills[0].alive || (s.kills[0].doom && s.kills[0].doom.by !== s))) s.kills.shift();
+    if (s.kills.length) target = s.kills[0];
+    else if (dm && dm.kind === 'melee' && dm.by && dm.by.alive) target = dm.by;
+    const shooterHolds = s.cls === 'ranged' && !target;
+    if (kind === 'volley' || shooterHolds || (ended && s.side !== loser && !target)) {
+      s.moving = 0;
+      if (kind !== 'volley' && !shooterHolds) s.ph += dt * 6;
+      if (s.cls === 'ranged' || !ended) s.wantFace = s.dir > 0 ? 0 : Math.PI;
+      return;
+    }
+    if (!target) {
+      if (!s.foe || !s.foe.alive || cur.t > s.search) { s.foe = searchEnemy(s); s.search = cur.t + 0.3 + Math.random() * 0.3; }
+      target = s.foe;
+    }
+    const charging = kind === 'charge';
+    if (target) {
+      const dx = target.x - s.x, dz = target.z - s.z, d = Math.hypot(dx, dz), rr = reach(s);
+      if (d > rr + 0.03) {
+        // keep the line until close, then close in on the man
+        const tz = d > 2.6 ? s.z + dz * 0.12 : target.z - dz / d * rr;
+        const tx = target.x - dx / d * rr;
+        const spd = s.cav ? (charging ? 3.8 : 2.4) : (charging ? 1.8 : 1.25);
+        moveTo(s, tx, tz, spd, dt, 0.01);
+        if (s.cav && charging && Math.random() < dt * 6) dustAt(s.x, s.z, 1);
+      } else {
+        s.fight = true;
+        s.wantFace = Math.atan2(-dz, dx);
+        const before = s.sw;
+        s.sw += dt * (5 + (s.i % 5) * 0.4);
+        // the moment a blow lands on the other man's shield or guard
+        const pa = (before / (Math.PI * 2)) % 1, pb = (s.sw / (Math.PI * 2)) % 1;
+        const hit = POLE[s.kit.wk] ? Math.sin(before) < 0.92 && Math.sin(s.sw) >= 0.92 : (pa < 0.7 && pb >= 0.7) || (pb < pa && pa < 0.7);
+        if (hit) { target.flinchT = cur.t; target.flinchDir = s.face; if (Math.random() < 0.5) sparkAt(s.x + dx * 0.6, 0.42, s.z + dz * 0.6, 3); }
+      }
+    } else {
+      moveTo(s, s.dir * 0.5, s.z, s.cav ? 2.4 : 1.2, dt, 0.3);
+    }
+  }
+
+  // Movement eases in and out (a run builds up, a stop slows down) and
+  // fighters turn smoothly instead of snapping round.
+  function motion(s, dt) {
+    const tx = s.moved ? s.tvx : 0, tz = s.moved ? s.tvz : 0;
+    const k = Math.min(1, dt * (s.cav ? 3.2 : 7));
+    s.vx += (tx - s.vx) * k; s.vz += (tz - s.vz) * k;
+    s.x += s.vx * dt; s.z += s.vz * dt;
+    const sp = Math.hypot(s.vx, s.vz);
+    s.moving = sp > 0.15 ? (sp > 2.6 ? 2 : 1) : 0;
+    if (s.moving) s.ph += dt * sp * (s.cav ? 4.5 : 7.5);
+    if (sp > 0.25 && !s.fight) s.wantFace = Math.atan2(-s.vz, s.vx);
+    const df = Math.atan2(Math.sin(s.wantFace - s.face), Math.cos(s.wantFace - s.face));
+    s.face += df * Math.min(1, dt * (s.cav ? 5 : 9));
+    s.moved = false;
   }
 
   function updateProjectiles() {
@@ -822,12 +845,23 @@ const Battle = (() => {
     const ended = cur.steps[cur.steps.length - 1].done;
     const cheering = ended && !dead && !run && cur.res.winner === s.side && !s.fight;
     const cheerY = cheering ? Math.max(0, Math.sin(t * 6 + s.cheer)) * 0.06 : 0;
-    // base: position, facing and the fall
-    B.compose(v.set(s.x, dead ? s.fallen * (s.cav ? 0.05 : 0.07) : bob + cheerY, s.z), q.setFromEuler(e.set(0, s.face, 0)), sc.set(1, 1, 1));
+    // base: position, facing and the fall. A death plays in stages: the man
+    // reels from the blow, his legs give, he falls faster and faster, hits
+    // the ground with a small bounce and settles.
+    const u = dead ? (s.fallen >= 1 ? 9 : t - s.fallT) : 0, TOP = Math.PI / 2 * 0.94;
+    let fa = 0, slide = 0;
     if (dead) {
-      const a = s.fallen * Math.PI / 2 * 0.94 * s.fallSgn;
-      B.multiply(s.fallAxis === 'z' ? fallM.makeRotationZ(a) : fallM.makeRotationX(a));
+      if (u < 0.18) fa = 0.28 * (u / 0.18);
+      else if (u < 0.62) { const k2 = (u - 0.18) / 0.44; fa = 0.28 + (TOP - 0.28) * k2 * k2; }
+      else { const k2 = u - 0.62; fa = TOP - 0.1 * Math.exp(-k2 * 9) * Math.abs(Math.sin(k2 * 20)); }
+      slide = Math.min(1, u / 0.3) * 0.12;
     }
+    const fwdX = Math.cos(s.face), fwdZ = -Math.sin(s.face);
+    const sx = dead ? (s.fallAxis === 'z' ? -fwdX * slide : -fwdZ * slide * s.fallSgn) : 0;
+    const sz = dead ? (s.fallAxis === 'z' ? -fwdZ * slide : fwdX * slide * s.fallSgn) : 0;
+    const breath = !dead && !run ? Math.sin(t * 2.1 + s.i) * 0.004 : 0;
+    B.compose(v.set(s.x + sx, dead ? Math.min(1, fa / TOP) * (s.cav ? 0.05 : 0.07) : bob + cheerY + breath, s.z + sz), q.setFromEuler(e.set(0, s.face, 0)), sc.set(1, 1, 1));
+    if (dead) B.multiply(s.fallAxis === 'z' ? fallM.makeRotationZ(fa * s.fallSgn) : fallM.makeRotationX(fa * s.fallSgn));
     s.mat.copy(B);
     let seat = 0;
     if (k.horse) {
@@ -842,8 +876,10 @@ const Battle = (() => {
       });
       seat = 0.34; B.copy(A);
     }
-    // rider/foot soldier body
-    local(A, B, 0, seat, 0);
+    // rider/foot soldier body: leans into a run, rocks back when a blow lands on him
+    const flinch = dead ? 0 : Math.max(0, 1 - (t - s.flinchT) / 0.28);
+    const lean = !dead && !k.horse && (run === 2 || (run && cur.step.kind === 'charge')) ? -0.13 : 0;
+    local(A, B, 0, seat, 0, 0, 0, lean + flinch * 0.24);
     put('torso', sl.torso, A);
     put('head', sl.head, A);
     put('helm_' + k.helm, sl.helm, A);
@@ -858,7 +894,7 @@ const Battle = (() => {
     // arms: aR = right (weapon) arm raised forward from hanging, aL = left
     let aR = 0.3, aL = 0.25, wAng = -0.5, wSpin = 0, rDx = 0, shieldUp = false;
     const sinceStrike = t - s.strikeT;
-    if (dead) { aR = 0.2; aL = 0.15; wAng = 1.1; }
+    if (dead) { aR = u < 0.4 ? 2.3 - u * 5 : 0.2; aL = u < 0.4 ? 1.9 - u * 4 : 0.15; wAng = 1.1; }
     else if (cheering) { aR = Math.PI - 0.15 + Math.sin(t * 6 + s.cheer) * 0.25; wAng = aR + Math.PI - 0.2; aL = 0.4; }
     else if (s.cls === 'ranged' && !s.fight) {
       const draw = clamp((t - s.drawT) / Math.max(0.01, s.shotT - s.drawT), 0, 1), after = t - s.shotT;
@@ -867,6 +903,8 @@ const Battle = (() => {
         const lift = aiming ? 0.45 : 0;
         aL = aiming ? Math.PI / 2 + lift : 0.35; wAng = aiming ? -lift : -0.2;
         aR = aiming ? Math.PI / 2 + lift - (after > 0 ? 0.5 : 0) : 0.3; rDx = aiming && after <= 0 ? -0.12 * draw : 0;
+        // reach back over the shoulder for the next arrow
+        if (!aiming && after > 0.35 && after < 0.95) { aR = 0.3 + Math.sin((after - 0.35) / 0.6 * Math.PI) * (Math.PI + 0.1); aL = 0.6; }
       } else if (wk === 'xbow') {
         aR = aL = aiming ? 1.45 + 0.2 : 0.9; wAng = aiming ? 0.2 : -0.35;
       } else {                             // sling: whirl overhead, then release
@@ -906,7 +944,12 @@ const Battle = (() => {
     const sY = 0.45, sZ = 0.105, LEN = 0.165;
     put('arm', sl.arms[0], local(R, A, rDx, sY, sZ, 0.08, 0, aR));
     const hx = rDx + Math.sin(aR) * LEN, hy = sY - Math.cos(aR) * LEN;
-    if (wk === 'sling') put('w_sling', sl.weapon, local(R, A, hx, hy, sZ + 0.01, 0, wSpin, wSpin ? -1.3 : 0));
+    const dropped = dead && u > 0.3;          // weapon and shield fall from his hands
+    if (dropped) {
+      const rX = -fwdZ, rZ = fwdX;             // his right, on the ground
+      R.compose(v.set(s.x + fwdX * 0.16 + rX * 0.22, 0.02, s.z + fwdZ * 0.16 + rZ * 0.22), q.setFromEuler(e.set(0, s.face + (s.look - 0.5) * 2.4, -Math.PI / 2)), sc.set(1, 1, 1));
+      put('w_' + wk, sl.weapon, R);
+    } else if (wk === 'sling') put('w_sling', sl.weapon, local(R, A, hx, hy, sZ + 0.01, 0, wSpin, wSpin ? -1.3 : 0));
     else if (wk === 'bow' || wk === 'longbow') {
       const lx = Math.sin(aL) * LEN, ly = sY - Math.cos(aL) * LEN;
       put('w_' + wk, sl.weapon, local(R, A, lx + 0.02, ly, -sZ + 0.02, 0, 0, wAng));
@@ -916,7 +959,10 @@ const Battle = (() => {
     put('arm', sl.arms[1], local(L, A, 0, sY, -sZ, -0.08, 0, aL));
     if (sl.shield !== undefined) {
       const lx = Math.sin(aL) * LEN, ly = sY - Math.cos(aL) * LEN;
-      if (dead) put('sh_' + k.shield, sl.shield, local(R, A, 0.02, 0.3, -0.14, 0, 0, 0));
+      if (dropped) {
+        R.compose(v.set(s.x + fwdZ * 0.26 + fwdX * 0.05, 0.014, s.z - fwdX * 0.26 + fwdZ * 0.05), q.setFromEuler(e.set(0, s.face + s.look, Math.PI / 2)), sc.set(1, 1, 1));
+        put('sh_' + k.shield, sl.shield, R);
+      } else if (dead) put('sh_' + k.shield, sl.shield, local(R, A, 0.02, 0.3, -0.14, 0, 0, 0));
       else put('sh_' + k.shield, sl.shield, local(R, A, lx + 0.03, ly + (shieldUp ? 0.03 : 0.02), -0.145, 0, shieldUp ? 0.15 : 0.35, 0));
     }
     if (sl.pole !== undefined) {
@@ -988,7 +1034,7 @@ const Battle = (() => {
     IM.spark.count = i; IM.spark.instanceMatrix.needsUpdate = true;
   }
 
-  function draw() {
+  function draw(dt) {
     drawSoldiers();
     drawProjectiles();
     // lighting follows the town's time of day
@@ -1011,9 +1057,19 @@ const Battle = (() => {
     const hfov = 2 * Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect);
     const fit = Math.max(7, width / 2 / Math.tan(hfov / 2) / 0.9, cur.halfZ * 1.6 / Math.tan(camera.fov * Math.PI / 360));
     const V = cur.view, dist = fit * V.zoom;
+    // zoomed in, the camera drifts after the thick of the fighting
+    let fx = mid, fz = 0;
+    if (V.zoom < 0.8) {
+      let n = 0, ax = 0, az = 0;
+      for (const so of cur.soldiers) if (so.alive && (so.fight || so.moving)) { ax += so.x; az += so.z; n++; }
+      if (n > 4) { const w = Math.min(1, (0.8 - V.zoom) * 2.5); fx = mid + (ax / n - mid) * w; fz = az / n * w; }
+    }
+    const ease = Math.min(1, (dt || 0.016) * 1.4);
+    V.fx = V.fx === undefined ? fx : V.fx + (fx - V.fx) * ease;
+    V.fz = V.fz === undefined ? fz : V.fz + (fz - V.fz) * ease;
     const ang = V.yaw + Math.sin(cur.t * 0.06) * 0.06, pitch = V.pitch, sh = cur.shake;
-    camera.position.set(mid + Math.sin(ang) * dist * Math.cos(pitch) + (Math.random() - 0.5) * sh, dist * Math.sin(pitch) + (Math.random() - 0.5) * sh, Math.cos(ang) * dist * Math.cos(pitch));
-    camera.lookAt(mid, 0, 0);
+    camera.position.set(V.fx + Math.sin(ang) * dist * Math.cos(pitch) + (Math.random() - 0.5) * sh, dist * Math.sin(pitch) + (Math.random() - 0.5) * sh, V.fz + Math.cos(ang) * dist * Math.cos(pitch));
+    camera.lookAt(V.fx, 0, V.fz);
     scene.fog.near = dist * 1.4; scene.fog.far = dist * 4 + 20;
     pix.render(scene, camera, 0.0035);
   }

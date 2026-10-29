@@ -15,16 +15,21 @@ From there you grow the town, build refineries, forge an army, fight off raiders
   - A moving sun, hard shadows, and day/night with glowing windows and lamp-lit streets.
   - Swaying forests, clouds, birds and fireflies; fog banks roll along the misty hills at the edge of the world.
   - Settlers arrive through the gates in family groups, carrying bundles or pulling handcarts, and walk to their new homes.
-  - Camera: drag or WASD to pan, scroll to zoom. Right-drag (or Q/E, R/F) turns the view up to 15° either side of the corner view and tilts it from low to almost straight down.
-- **Command square** in the middle of the town's back-right (north) side: Town Hall, Forge, Barracks and Marketplace round a fountain. They are scenery; you run them from the tool dock at the bottom (Expeditions, Tech Tree, Forge, Market, Army, World Map), and each tool shows its building's level and upgrade.
+  - Camera: drag or WASD to pan, scroll to zoom. Q / E zoom. Hold Shift with A / D to turn (15° either side of the corner view) and W / S to tilt, or right-drag.
+- **Command square** in the middle of the town's back-right (north) side: Town Hall, Forge, Barracks and Marketplace round a fountain. They are scenery and don't upgrade; research improves what they do.
+- **Tool dock:** Build, Expeditions, Tech Tree, Forge, Market, Bank, Army (training and the unit guide), Defence and World Map, each in its own window.
+- **Bank:** every stock with its average gain or loss per day, and switches for which resources show in the top bar (by default everything but raw ores and charcoal).
+- **Army power** rating, and win chances worked out from 160 simulated battles that count every unit's strengths and weaknesses, with expected losses.
+- **Pixel icons** for every resource, building, weapon and button.
+- **Day and night** change gradually through the day with the sun's arc.
 - **Build tool:** opens a tray of buildings above the dock. Picking one shows its stats before you place it.
 - **Walls** ring the town, with gates and corner towers. They upgrade from palisade to stone and grow when you conquer land.
-- **Click a building** you placed to see its stats, next-level preview, upgrade and controls.
+- **Click a building** you placed to see its stats, its next tier (Tier I, II, III…), upgrade and controls.
 - **Vertical tech tree** (tiers top to bottom, one column per branch) with a research queue for anything you've unlocked.
 - **One refinery per material** (Sawmill, Charcoal Kiln, Iron Smelter, Bronze Foundry, Brass Works, Steelworks, Crucible). Each has a slider for how much it refines and four tiers.
 - **Barracks:** recruit soldiers from the weapons in your armoury. Each recruit costs a one-time fee and takes time to train, longer for harder weapons.
 - **One marketplace** with search. There are no wages and no passive income.
-- **3D battles, soldier by soldier:** every figure is one fighter (up to 1,500 a side), equipped by weapon and material: helmets, shields, capes, quivers, banners and barded horses. Every death in the simulation is dealt on screen by a real attacker of the right type: arrows, bolts, sling stones and javelins that strike their target, tower shots from the walls, or a blow from the enemy they were fighting. Fallen soldiers stay on the field with arrows in them. Live unit counts per type match the simulation exactly. Drag to turn the camera, scroll to zoom in.
+- **3D battles, soldier by soldier:** every figure is one fighter (up to 1,500 a side), equipped by weapon and material: helmets, shields, capes, quivers, banners and barded horses. Every death in the simulation is dealt on screen by a real attacker of the right type: arrows, bolts, sling stones and javelins that strike their target, tower shots from the walls, or a blow from the enemy they were fighting. Deaths play out in stages (reel, collapse, settle) and the fallen drop their weapons and shields; blows land on shields with sparks and a flinch; movement eases in and out. Live unit counts per type match the simulation exactly. Drag to turn the camera, scroll to zoom in.
 - **3D world map** with 14 cities, from timber villages to walled towns and great castles, linked by roads across an island realm.
 - **Generated medieval music** (toggle in the top right). The war drums swell when raiders approach or battle begins.
 - Tutorial, custom SVG icons, and autosave to `localStorage`.

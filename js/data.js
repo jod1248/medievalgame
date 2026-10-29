@@ -276,19 +276,19 @@ const TECHS = {
 
   // ---- Refining ----
   ref1:   { tab: 'refining', col: 0, row: 0, name: 'Basic Refinery',  icon: 'saw', desc: 'Sawmill & Charcoal Kiln. Tier I refineries.', cost: { coins: 50, wood: 20 }, days: 0.6 },
-  ref2:   { tab: 'refining', col: 1, row: 0, name: 'Smelting',        icon: 'furnace', desc: 'Iron Smelter, Bronze Foundry, Brass Works. Tier II upgrades (1.8× speed).', req: ['ref1', 'mining'], cost: { coins: 150, planks: 20, stone: 30 }, days: 1.5 },
-  ref3:   { tab: 'refining', col: 2, row: 0, name: 'Blast Furnace',   icon: 'flame', desc: 'Steelworks. Tier III upgrades (2.8× speed).', req: ['ref2'], cost: { coins: 400, iron: 20, stone: 60 }, days: 3 },
-  ref4:   { tab: 'refining', col: 3, row: 0, name: 'Crucible Works',  icon: 'crucible', desc: 'Crucible for Damascus steel. Tier IV upgrades (4.2× speed).', req: ['ref3', 'bellows'], cost: { coins: 900, steel: 20, brass: 15 }, days: 4.5 },
+  ref2:   { tab: 'refining', col: 1, row: 0, name: 'Smelting',        icon: 'furnace', desc: 'Iron Smelter, Bronze Foundry, Brass Works. Tier II refineries (1.8× speed). Forge +30% speed.', req: ['ref1', 'mining'], cost: { coins: 150, planks: 20, stone: 30 }, days: 1.5 },
+  ref3:   { tab: 'refining', col: 2, row: 0, name: 'Blast Furnace',   icon: 'flame', desc: 'Steelworks. Tier III refineries (2.8× speed). Forge +30% speed.', req: ['ref2'], cost: { coins: 400, iron: 20, stone: 60 }, days: 3 },
+  ref4:   { tab: 'refining', col: 3, row: 0, name: 'Crucible Works',  icon: 'crucible', desc: 'Crucible for Damascus steel. Tier IV refineries (4.2× speed). Forge +30% speed.', req: ['ref3', 'bellows'], cost: { coins: 900, steel: 20, brass: 15 }, days: 4.5 },
   mining: { tab: 'refining', col: 0, row: 1, name: 'Mining',          icon: 'pick', desc: 'Unlocks Mines.', cost: { coins: 60, wood: 30 }, days: 0.8 },
   deepMining: { tab: 'refining', col: 1, row: 1, name: 'Deep Shafts', icon: 'pick', desc: 'Mines +50%.', req: ['mining', 'ref1'], cost: { coins: 180, planks: 30 }, days: 1.5 },
-  bellows:{ tab: 'refining', col: 2, row: 1, name: 'Bellows',         icon: 'speed', desc: 'Refineries +25% speed.', req: ['ref2'], cost: { coins: 260, planks: 30, iron: 10 }, days: 2 },
+  bellows:{ tab: 'refining', col: 2, row: 1, name: 'Bellows',         icon: 'speed', desc: 'Refineries +25% speed. Forge +20% speed.', req: ['ref2'], cost: { coins: 260, planks: 30, iron: 10 }, days: 2 },
 
   // ---- Economy ----
-  tools:        { tab: 'economy', col: 0, row: 0, name: 'Better Tools',   icon: 'hammer', desc: 'Camps, quarries, mines, expeditions +25%.', cost: { coins: 60, wood: 30 }, days: 0.8 },
+  tools:        { tab: 'economy', col: 0, row: 0, name: 'Better Tools',   icon: 'hammer', desc: 'Camps, quarries, mines, expeditions +25%. One more expedition at a time.', cost: { coins: 60, wood: 30 }, days: 0.8 },
   cropRotation: { tab: 'economy', col: 1, row: 0, name: 'Crop Rotation',  icon: 'wheat', desc: 'Farms +30%.', req: ['tools'], cost: { coins: 120, planks: 15 }, days: 1.2 },
   masonry:      { tab: 'economy', col: 0, row: 1, name: 'Masonry',        icon: 'wall', desc: 'House level 3.', cost: { coins: 100, stone: 40 }, days: 1 },
   architecture: { tab: 'economy', col: 1, row: 1, name: 'Architecture',   icon: 'house', desc: 'Houses +25% capacity.', req: ['masonry'], cost: { coins: 250, planks: 40, stone: 60 }, days: 2 },
-  tradeGuild:   { tab: 'economy', col: 0, row: 2, name: 'Trade Guild',    icon: 'scales', desc: 'Market level 3.', cost: { coins: 150 }, days: 1 },
+  tradeGuild:   { tab: 'economy', col: 0, row: 2, name: 'Trade Guild',    icon: 'scales', desc: 'Market margin 28% → 20%.', cost: { coins: 150 }, days: 1 },
   banking:      { tab: 'economy', col: 1, row: 2, name: 'Banking',        icon: 'coin', desc: 'Sell prices +15%.', req: ['tradeGuild'], cost: { coins: 300, brass: 5 }, days: 2 },
   horsemanship: { tab: 'economy', col: 0, row: 3, name: 'Horsemanship',   icon: 'horse', desc: 'Unlocks Stables.', cost: { coins: 150, planks: 20 }, days: 1.2 },
   husbandry:    { tab: 'economy', col: 1, row: 3, name: 'Animal Husbandry', icon: 'horseshoe', desc: 'Farms +20%, horses +50%.', req: ['horsemanship', 'cropRotation'], cost: { coins: 250, planks: 30 }, days: 2 },
@@ -298,12 +298,12 @@ const TECHS = {
   palisade:    { tab: 'military', col: 0, row: 0, name: 'Palisade',       icon: 'wall', desc: 'Taller palisade. Defenders take −10% damage.', cost: { coins: 60, wood: 60 }, days: 0.8 },
   stoneWalls:  { tab: 'military', col: 1, row: 0, name: 'Stone Walls',    icon: 'castle', desc: 'Stone walls. Defenders take −25% damage.', req: ['palisade', 'masonry'], cost: { coins: 250, stone: 150 }, days: 2 },
   watchtowers: { tab: 'military', col: 0, row: 1, name: 'Watchtowers',    icon: 'tower', desc: 'Unlocks Watchtowers.', req: ['palisade'], cost: { coins: 100, stone: 30 }, days: 1 },
-  drill:       { tab: 'military', col: 0, row: 2, name: 'Drill Yards',    icon: 'sword', desc: 'Attack +10%.', cost: { coins: 120 }, days: 1 },
-  warAcademy:  { tab: 'military', col: 1, row: 2, name: 'War Academy',    icon: 'tech', desc: 'Attack +15%.', req: ['drill'], cost: { coins: 400, iron: 15 }, days: 2.5 },
+  drill:       { tab: 'military', col: 0, row: 2, name: 'Drill Yards',    icon: 'sword', desc: 'Attack +10%. Training ×1.4 faster. Army size +80.', cost: { coins: 120 }, days: 1 },
+  warAcademy:  { tab: 'military', col: 1, row: 2, name: 'War Academy',    icon: 'tech', desc: 'Attack +15%. Training faster again. Army size +150.', req: ['drill'], cost: { coins: 400, iron: 15 }, days: 2.5 },
   tactics:     { tab: 'military', col: 2, row: 2, name: 'Battle Tactics', icon: 'bow', desc: '+1 volley for ranged.', req: ['warAcademy'], cost: { coins: 700, steel: 10 }, days: 3 },
   chainmail:   { tab: 'military', col: 0, row: 3, name: 'Chainmail',      icon: 'armor', desc: 'Armour +1.', req: ['ref2'], cost: { coins: 200, iron: 20 }, days: 2 },
   plateArmor:  { tab: 'military', col: 1, row: 3, name: 'Plate Armour',   icon: 'shield', desc: 'Armour +2.', req: ['chainmail', 'ref3'], cost: { coins: 600, steel: 20 }, days: 3.5 },
-  logistics:   { tab: 'military', col: 0, row: 4, name: 'Logistics',      icon: 'map', desc: 'March 35% faster.', cost: { coins: 150, food: 100 }, days: 1.2 },
+  logistics:   { tab: 'military', col: 0, row: 4, name: 'Logistics',      icon: 'map', desc: 'March 35% faster. One more expedition at a time.', cost: { coins: 150, food: 100 }, days: 1.2 },
 };
 
 // ------------------------------------------------------------

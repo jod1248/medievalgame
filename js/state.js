@@ -95,6 +95,7 @@ function newGame() {
     expeditions: [], campaigns: [],
     kingdoms: KINGDOMS.map(k => ({ id: k.id, conquered: false, garrison: { ...k.garrison }, known: true })),
     market: {},              // resource -> demand factor
+    topRes: DEFAULT_TOP.slice(), hist: [],
     raid: { next: 24, incoming: null, count: 0 },
     tut: 0, started: false, won: false, lost: false,
     stats: { woodGathered: 0, housesBuilt: 0, weaponsForged: 0, recruited: 0, trades: 0, raidsRepelled: 0, conquered: 0, researched: 0 },
@@ -202,9 +203,18 @@ function availableWorkers() { return Math.max(0, civilians() - peopleOnExpeditio
 function employedWorkers() { return G.buildings.reduce((s, b) => s + (b.workers || 0), 0); }
 function idleCitizens() { return Math.max(0, availableWorkers() - employedWorkers()); }
 function maxRefTier() { return has('ref4') ? 4 : has('ref3') ? 3 : has('ref2') ? 2 : has('ref1') ? 1 : 0; }
+// The command-square buildings don't upgrade; research improves what they do
 function armyCapacity() {
-  const b = findBuilding('barracks');
-  return BUILDINGS.barracks.capacity[b.level - 1] + 40 * G.kingdoms.filter(k => k.conquered).length;   // vassal levies
+  return 120 + (has('drill') ? 80 : 0) + (has('warAcademy') ? 150 : 0) + 60 * G.kingdoms.filter(k => k.conquered).length;   // vassal levies
+}
+function forgeSpeed() { return 1 + (has('ref2') ? 0.3 : 0) + (has('ref3') ? 0.3 : 0) + (has('ref4') ? 0.3 : 0) + (has('bellows') ? 0.2 : 0); }
+function trainSpeed() { return 1 + (has('drill') ? 0.4 : 0) + (has('warAcademy') ? 0.6 : 0); }
+function marketSpread() { return (has('tradeGuild') ? 0.2 : 0.28) * (has('guilds') ? 0.6 : 1); }
+// top-bar resources shown by default: everything but raw ores and charcoal
+const DEFAULT_TOP = RES_ORDER.filter(r => !['ironOre', 'copperOre', 'tinOre', 'zincOre', 'charcoal'].includes(r));
+function ensureFields() {
+  if (!Array.isArray(G.topRes)) G.topRes = DEFAULT_TOP.slice();
+  if (!Array.isArray(G.hist)) G.hist = [];
 }
 function armyBonuses() {
   let atk = 1, armor = 0;

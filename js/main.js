@@ -16,6 +16,7 @@ const Main = (() => {
     if (!loadGame()) { startNew(); return; }
     G.started = true;
     if (G.tut === undefined) G.tut = -1;
+    ensureFields();
     afterLoad();
   }
   function afterLoad() {
@@ -53,14 +54,18 @@ const Main = (() => {
     requestAnimationFrame(loop);
   }
 
+  // WASD pans; holding Shift turns WASD into the camera's turn (A/D) and
+  // tilt (W/S); Q/E zoom in and out. Arrow keys always pan.
   function panKeys(dt) {
-    const ax = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
-    const ay = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
-    if (ax || ay) Render.panKeys(ax, ay, dt);
-    if (keys.KeyQ) Render.rotateBy(-1.2 * dt);
-    if (keys.KeyE) Render.rotateBy(1.2 * dt);
-    if (keys.KeyR) Render.tiltBy(1.2 * dt);
-    if (keys.KeyF) Render.tiltBy(-1.2 * dt);
+    const shift = keys.ShiftLeft || keys.ShiftRight;
+    const kx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), ky = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+    const ax = (shift ? 0 : kx) + (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
+    const ay = (shift ? 0 : ky) + (keys.ArrowUp ? 1 : 0) - (keys.ArrowDown ? 1 : 0);
+    if (ax || ay) Render.panKeys(Math.sign(ax), Math.sign(ay), dt);
+    if (shift && kx) Render.rotateBy(kx * 1.1 * dt);
+    if (shift && ky) Render.tiltBy(ky * 1.1 * dt);
+    if (keys.KeyQ) Render.zoomAt(canvas.clientWidth / 2, canvas.clientHeight / 2, 1 + 1.6 * dt);
+    if (keys.KeyE) Render.zoomAt(canvas.clientWidth / 2, canvas.clientHeight / 2, 1 / (1 + 1.6 * dt));
   }
 
   function canvasPos(e) {
@@ -144,9 +149,9 @@ const Main = (() => {
     window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
   }
 
-  function boot() {
+  async function boot() {
     canvas = document.getElementById('game');
-    installIcons();
+    await installIcons();               // pixel icon sprites are drawn before any UI
     newGame();               // background scene behind the intro
     Render.init(canvas);
     UI.init();

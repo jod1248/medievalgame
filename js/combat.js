@@ -52,7 +52,8 @@ const Combat = (() => {
   function simulate(Ain, Din, opts = {}) {
     const rng = opts.rng || Math.random;
     const detailed = opts.detailed !== false;
-    const luck = () => 0.9 + rng() * 0.2;   // fortunes of war
+    const swing = opts.luck ?? 0.1;
+    const luck = () => 1 - swing + rng() * swing * 2;   // fortunes of war
     const A = { tag: 'A', name: Ain.name, atkMult: (Ain.atkMult || 1) * luck(), armorAdd: Ain.armorAdd || 0, dmgTaken: Ain.dmgTaken || 1, towers: Ain.towers || 0, extraVolleys: Ain.extraVolleys || 0 };
     const D = { tag: 'D', name: Din.name, atkMult: (Din.atkMult || 1) * luck(), armorAdd: Din.armorAdd || 0, dmgTaken: Din.dmgTaken || 1, towers: Din.towers || 0, extraVolleys: Din.extraVolleys || 0 };
     const sa = stacksOf(Ain, 'A'), sd = stacksOf(Din, 'D');
@@ -162,21 +163,45 @@ const Combat = (() => {
     return { winner, A: res(sa), D: res(sd), rounds, order: { A: sa.map(s => s.id), D: sd.map(s => s.id) } };
   }
 
-  // Monte-Carlo win chance for side A
-  function forecast(A, D, runs = 40) {
-    let wins = 0;
-    for (let i = 0; i < runs; i++) if (simulate(A, D, { detailed: false }).winner === 'A') wins++;
-    return wins / runs;
+  // Win chance for side A. Runs the full simulation (class matchups,
+  // armour, volleys, towers, morale) many times with the fortunes of war
+  // varied, and scores each run by how decisive it was: a narrow win
+  // counts for little more than a coin toss, a rout counts fully.
+  // Seeded, so the same armies always give the same answer.
+  const estCache = new Map();
+  function estimate(A, D, runs = 160) {
+    const key = JSON.stringify([A, D]);
+    if (estCache.has(key)) return estCache.get(key);
+    let seed = 0;
+    for (let i = 0; i < key.length; i++) seed = (seed * 31 + key.charCodeAt(i)) | 0;
+    const rng = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const sum = u => Object.values(u).reduce((a, b) => a + b, 0);
+    let score = 0, lostA = 0, lostD = 0;
+    for (let i = 0; i < runs; i++) {
+      const r = simulate(A, D, { detailed: false, rng, luck: 0.22 });
+      const sa = sum(r.A.start) || 1, sd = sum(r.D.start) || 1;
+      const fa = sum(r.A.end) / sa, fd = sum(r.D.end) / sd;
+      lostA += sa - sum(r.A.end); lostD += sd - sum(r.D.end);
+      const margin = (r.winner === 'A' ? 1 : -1) * Math.max(0.02, Math.abs(fa - fd));
+      score += 1 / (1 + Math.exp(-margin * 4.5));
+    }
+    const out = { win: score / runs, lostA: lostA / runs, lostD: lostD / runs };
+    if (estCache.size > 200) estCache.clear();
+    estCache.set(key, out);
+    return out;
   }
+  function forecast(A, D) { return estimate(A, D).win; }
 
-  function power(units) {
+  // Fighting strength: attack × staying power (health and armour), with
+  // ranged volleys and the army's drill and armour bonuses counted
+  function power(units, bonus = { atk: 1, armor: 0 }) {
     let p = 0;
     for (const k in units) {
       const w = WEAPONS[k];
-      p += units[k] * Math.sqrt(w.atk * w.hp * (1 + w.armor * 0.15) * (w.volleys ? 1.3 : 1));
+      p += units[k] * Math.sqrt(w.atk * bonus.atk * w.hp * (1 + (w.armor + bonus.armor) * 0.15) * (w.volleys ? 1 + w.volleys * 0.15 : 1) * (w.pierce ? 1 + w.pierce * 0.3 : 1));
     }
     return Math.round(p / 10);
   }
 
-  return { simulate, forecast, power };
+  return { simulate, forecast, estimate, power };
 })();

@@ -23,6 +23,24 @@ const Sim = (() => {
     marketDrift(dt);
     kingdomGrowth(dt);
     if (Math.floor(G.time) !== dayMark) { dayMark = Math.floor(G.time); newDay(); }
+    record();
+  }
+
+  // Bank: snapshots of every stock, ten a day, for the last three days
+  function record() {
+    const h = G.hist;
+    if (h.length && G.time - h[h.length - 1].t < 0.1) return;
+    h.push({ t: G.time, v: { ...G.res, coins: G.coins } });
+    while (h.length > 31) h.shift();
+  }
+  // average gain (or loss) per day over the recorded window; null until there's enough history
+  function rate(k) {
+    const h = G.hist;
+    if (h.length < 3) return null;
+    const a = h[0], b = h[h.length - 1];
+    if (b.t - a.t < 0.2) return null;
+    const cur = k === 'coins' ? G.coins : G.res[k];
+    return (cur - (a.v[k] || 0)) / (G.time - a.t);
   }
 
   function construction(dt) {
@@ -166,8 +184,7 @@ const Sim = (() => {
 
   function research(dt) {
     if (!G.research) return;
-    const f = findBuilding('forge');
-    G.research.prog += dt * BUILDINGS.forge.speed[f.level - 1];
+    G.research.prog += dt * forgeSpeed();
     const t = TECHS[G.research.id];
     if (G.research.prog >= t.days) {
       G.techs[G.research.id] = true;
@@ -182,8 +199,7 @@ const Sim = (() => {
   function forge(dt) {
     const q = G.forgeQueue[0];
     if (!q) return;
-    const f = findBuilding('forge');
-    q.prog += dt * BUILDINGS.forge.speed[f.level - 1] / WEAPONS[q.w].time;
+    q.prog += dt * forgeSpeed() / WEAPONS[q.w].time;
     while (q.prog >= 1 && q.n > 0) {
       q.prog -= 1; q.n--;
       G.weapons[q.w] = (G.weapons[q.w] || 0) + 1;
@@ -195,10 +211,8 @@ const Sim = (() => {
     }
   }
 
-  function expBonus() {
-    return (has('tools') ? 1.25 : 1) * BUILDINGS.townhall.expBonus[findBuilding('townhall').level - 1];
-  }
-  function expSlots() { return BUILDINGS.townhall.expSlots[findBuilding('townhall').level - 1]; }
+  function expBonus() { return has('tools') ? 1.25 : 1; }
+  function expSlots() { return 2 + (has('tools') ? 1 : 0) + (has('logistics') ? 1 : 0); }
   function expeditions(dt) {
     const mult = expBonus();
     for (const e of G.expeditions) e.t -= dt;
@@ -276,8 +290,7 @@ const Sim = (() => {
   function training(dt) {
     const q = G.training[0];
     if (!q) return;
-    const bk = findBuilding('barracks');
-    q.prog += dt * BUILDINGS.barracks.trainSpeed[bk.level - 1] / trainDays(q.w);
+    q.prog += dt * trainSpeed() / trainDays(q.w);
     while (q.prog >= 1 && q.n > 0) {
       q.prog -= 1; q.n--;
       G.army[q.w] = (G.army[q.w] || 0) + 1;
@@ -413,9 +426,7 @@ const Sim = (() => {
   // One market for everything; each trade nudges that resource's price
   function demand(r) { return G.market[r] || 1; }
   function price(r, buying) {
-    const m = findBuilding('market');
-    let spread = BUILDINGS.market.spread[m.level - 1];
-    if (has('guilds')) spread *= 0.6;
+    const spread = marketSpread();
     const base = RES[r].price * demand(r);
     return buying ? base * (1 + spread) : base * (1 - spread) * (has('banking') ? 1.15 : 1);
   }
@@ -523,7 +534,7 @@ const Sim = (() => {
   return {
     tick, startExpedition, recruit, disband, launchCampaign, trade, price, startResearch, cancelResearch,
     queueWeapon, cancelQueue, cancelTraining, isQueued, upgradeBuilding, demolish, foodPerDay, refinerySpeed, expBonus, expSlots,
-    playerSide, kingdomSide, defenders, militiaCount, marchDays, roundUnits, efficiency,
+    playerSide, kingdomSide, defenders, militiaCount, marchDays, roundUnits, efficiency, rate,
   };
 })();
 

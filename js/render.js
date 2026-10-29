@@ -36,12 +36,13 @@ const Render = (() => {
 
   // ---------- day / night ----------
   function dayPhase() { return G ? (G.time + 0.3) % 1 : 0.4; }
+  // The sun follows a smooth arc through the whole day (sunrise at a
+  // quarter past, sunset at three quarters), and the light rises and
+  // fades with it gradually: long dawns and dusks, no sudden switch.
+  function sunHeight() { return Math.sin((dayPhase() - 0.25) * Math.PI * 2); }
   function daylight() {
-    const p = dayPhase();
-    if (p >= 0.3 && p <= 0.75) return 1;
-    if (p > 0.22 && p < 0.3) return (p - 0.22) / 0.08;
-    if (p > 0.75 && p < 0.83) return 1 - (p - 0.75) / 0.08;
-    return 0;
+    const t = Math.min(1, Math.max(0, (sunHeight() + 0.32) / 0.8));
+    return t * t * (3 - 2 * t);
   }
 
   // ---------- terrain ----------
@@ -708,11 +709,11 @@ const Render = (() => {
   }
   const _sky = new T.Color(), _tmp = new T.Color();
   function updateLighting() {
-    const day = daylight(), night = 1 - day, p = dayPhase();
-    const twi = Math.sin(day * Math.PI);
-    // the sun crosses the sky from sunrise to sunset
-    const a = Math.min(1, Math.max(0, (p - 0.22) / 0.61)) * Math.PI;
-    const dir = new T.Vector3(-Math.cos(a) * 0.8, Math.max(0.15, Math.sin(a)), 0.45).normalize();
+    const day = daylight(), night = 1 - day, p = dayPhase(), e = sunHeight();
+    const twi = Math.max(0, 1 - Math.abs(e) / 0.4);          // golden light near sunrise and sunset
+    // the sun crosses the sky continuously
+    const a = (p - 0.25) * Math.PI * 2;
+    const dir = new T.Vector3(-Math.cos(a) * 0.8, Math.max(0.12, Math.sin(a)), 0.45).normalize();
     sun.position.set(cam.x + dir.x * 40, dir.y * 40, cam.z + dir.z * 40);
     sun.target.position.set(cam.x, 0, cam.z);
     sun.intensity = 2.3 * day;

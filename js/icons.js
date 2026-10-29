@@ -82,14 +82,63 @@ const ICONS = {
   queue: '<path d="M4 6h12M4 12h12M4 18h8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M17 15l4 3-4 3z"/>',
 };
 
+// Icons are pixel sprites. At boot each SVG above is drawn into a 16×16
+// grid, snapped to hard pixels, given a dark outline and a light/dark
+// bevel, and stored as two images: a mask (the sprite's shape, filled
+// with the icon's colour) and an overlay (its shading and fixed colours).
+const ICON_PX = 16, ICON_UP = 4;
 function ic(name, cls = '', color) {
-  return `<svg class="ic ${cls}"${color ? ` style="color:${color}"` : ''} aria-hidden="true"><use href="#i-${name}"/></svg>`;
+  return `<i class="ic i-${name} ${cls}"${color ? ` style="color:${color}"` : ''} aria-hidden="true"></i>`;
 }
 
 function installIcons() {
-  const div = document.createElement('div');
-  div.style.display = 'none';
-  div.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg">' +
-    Object.entries(ICONS).map(([k, v]) => `<symbol id="i-${k}" viewBox="0 0 24 24" fill="currentColor">${v}</symbol>`).join('') + '</svg>';
-  document.body.prepend(div);
+  const N = ICON_PX, U = ICON_UP;
+  const css = [];
+  const sprite = (key, img) => {
+    const c = document.createElement('canvas'); c.width = c.height = N;
+    const g = c.getContext('2d');
+    g.drawImage(img, 1, 1, N - 2, N - 2);
+    const d = g.getImageData(0, 0, N, N).data;
+    const on = new Uint8Array(N * N), over = new Uint8ClampedArray(N * N * 4);
+    for (let i = 0; i < N * N; i++) on[i] = d[i * 4 + 3] > 100 ? 1 : 0;
+    const at = (x, y) => x >= 0 && y >= 0 && x < N && y < N && on[y * N + x];
+    const put = (i, r, gg, b, a) => { over[i * 4] = r; over[i * 4 + 1] = gg; over[i * 4 + 2] = b; over[i * 4 + 3] = a; };
+    const shape = new Uint8Array(N * N);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const i = y * N + x;
+      if (on[i]) {
+        shape[i] = 1;
+        const r = d[i * 4], gg = d[i * 4 + 1], b = d[i * 4 + 2];
+        const grey = Math.max(r, gg, b) - Math.min(r, gg, b) < 28, v = (r + gg + b) / 3;
+        if (!grey) put(i, r, gg, b, 255);                                   // fixed colour detail
+        else if (v < 228) put(i, 0, 0, 0, Math.round((1 - v / 255) * 4) / 4 * 255);   // shading detail
+        else if (!at(x, y - 1)) put(i, 255, 255, 255, 80);                  // lit top edge
+        else if (!at(x, y + 1) || !at(x + 1, y)) put(i, 0, 0, 0, 60);       // shaded bottom/right edge
+      } else if (at(x - 1, y) || at(x + 1, y) || at(x, y - 1) || at(x, y + 1)) {
+        shape[i] = 1; put(i, 20, 13, 8, 235);                               // outline
+      }
+    }
+    // blow both layers up with hard pixels so the browser never blurs them
+    const big = (fill) => {
+      const o = document.createElement('canvas'); o.width = o.height = N * U;
+      const og = o.getContext('2d');
+      for (let i = 0; i < N * N; i++) { const col = fill(i); if (col) { og.fillStyle = col; og.fillRect((i % N) * U, Math.floor(i / N) * U, U, U); } }
+      return o.toDataURL();
+    };
+    const m = big(i => shape[i] ? '#fff' : null);
+    const o = big(i => over[i * 4 + 3] ? `rgba(${over[i * 4]},${over[i * 4 + 1]},${over[i * 4 + 2]},${(over[i * 4 + 3] / 255).toFixed(3)})` : null);
+    css.push(`.i-${key}{--m:url(${m});--o:url(${o})}`);
+  };
+  const jobs = Object.entries(ICONS).map(([k, v]) => new Promise(res => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${N}" height="${N}" fill="#ffffff" style="color:#ffffff">${v}</svg>`;
+    const img = new Image();
+    img.onload = () => { try { sprite(k, img); } catch (e) { /* leave this icon blank */ } res(); };
+    img.onerror = () => res();
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }));
+  return Promise.all(jobs).then(() => {
+    const st = document.createElement('style');
+    st.textContent = css.join('\n');
+    document.head.appendChild(st);
+  });
 }
